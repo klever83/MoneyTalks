@@ -28,10 +28,11 @@ public enum TableExtractor {
     ///
     /// Запасной вариант: при одной-двух операциях пробелы внутри описания тоже могут стать
     /// границами. Для известного банка надёжнее задать границы по шапке таблицы.
-    /// - Parameter minGap: просвет уже этого не считается границей. По умолчанию половина
-    ///   типичной высоты строки: шире пробела между словами при любом кегле.
+    /// - Parameter minGap: просвет уже этого не считается границей. По умолчанию 0.3 типичной
+    ///   высоты строки: шире пробела между словами (~0.2), но уже отступа ячеек iText (~0.4),
+    ///   иначе соседние числовые колонки в реальных выписках склеиваются.
     public static func columnBoundaries(for lines: [TextLine], minGap: CGFloat? = nil) -> [CGFloat] {
-        let minGap = minGap ?? (TextLayoutBuilder.median(lines.map(\.frame.height)) ?? 6) * 0.5
+        let minGap = minGap ?? (TextLayoutBuilder.median(lines.map(\.frame.height)) ?? 6) * 0.3
         let spans = lines
             .flatMap(\.words)
             .map { ($0.frame.minX, $0.frame.maxX) }

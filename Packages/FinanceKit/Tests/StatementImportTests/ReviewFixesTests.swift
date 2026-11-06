@@ -68,6 +68,18 @@ struct MultiPageTableTests {
         ])
         #expect(TableExtractor.columnBoundaries(for: [big]).count == 1)
     }
+
+    @Test("Узкий отступ ячеек iText (~4 pt при строке 10 pt) остаётся границей колонок")
+    func narrowCellPadding() {
+        let line = TextLine(words: [
+            TextWord(text: "11.45", frame: CGRect(x: 0, y: 0, width: 20, height: 10)),
+            TextWord(text: "BYN", frame: CGRect(x: 22, y: 0, width: 16, height: 10)),
+            TextWord(text: "21.59", frame: CGRect(x: 42, y: 0, width: 20, height: 10)),
+            TextWord(text: "BYN", frame: CGRect(x: 64, y: 0, width: 16, height: 10)),
+        ])
+        let boundaries = TableExtractor.columnBoundaries(for: [line])
+        #expect(TableExtractor.cells(of: line, boundaries: boundaries) == ["11.45 BYN", "21.59 BYN"])
+    }
 }
 
 @Suite("Уточнение «высоких» рамок PDFKit")
