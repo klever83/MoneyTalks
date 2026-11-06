@@ -29,7 +29,13 @@ public struct AppRootView: View {
                 AnalyticsScreen(transactions: dependencies.transactions)
             }
             Tab("Импорт", systemImage: "square.and.arrow.down") {
-                ImportScreen(registry: dependencies.parserRegistry, banks: BankParsersBY.banks)
+                ImportScreen(
+                    registry: dependencies.parserRegistry,
+                    banks: BankParsersBY.banks,
+                    accounts: dependencies.accounts,
+                    transactions: dependencies.transactions,
+                    imports: dependencies.imports
+                )
             }
             Tab("Счета", systemImage: "creditcard") {
                 AccountsScreen(repository: dependencies.accounts)

@@ -145,3 +145,33 @@ public struct GRDBCategoryRepository: CategoryRepository {
             .order(Column("kind"), Column("sortOrder"))
     }
 }
+
+public struct GRDBImportRepository: ImportRepository {
+    private let database: AppDatabase
+
+    public init(database: AppDatabase) {
+        self.database = database
+    }
+
+    public func commitImport(accounts: [Account], transactions: [FinanceTransaction]) async throws {
+        let now = Date.now
+        let accountRecords = accounts.map { account in
+            var account = account
+            account.updatedAt = now
+            return AccountRecord(account)
+        }
+        let transactionRecords = transactions.map { transaction in
+            var transaction = transaction
+            transaction.updatedAt = now
+            return TransactionRecord(transaction)
+        }
+        try await database.writer.write { db in
+            for record in accountRecords {
+                try record.save(db)
+            }
+            for record in transactionRecords {
+                try record.save(db)
+            }
+        }
+    }
+}

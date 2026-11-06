@@ -786,6 +786,376 @@
           }
         }
       }
+    },
+    "Читаю выписку…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading statement…"
+          }
+        }
+      }
+    },
+    "Какого банка эта выписка?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Which bank is this statement from?"
+          }
+        }
+      }
+    },
+    "Банк не определился автоматически по содержимому файла.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The bank could not be detected from the file contents."
+          }
+        }
+      }
+    },
+    "Импорт завершён": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import complete"
+          }
+        }
+      }
+    },
+    "Добавлено операций: %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transactions added: %lld"
+          }
+        }
+      }
+    },
+    "Импортировать ещё": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import another"
+          }
+        }
+      }
+    },
+    "Не получилось": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Something went wrong"
+          }
+        }
+      }
+    },
+    "Выбрать другой файл": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose another file"
+          }
+        }
+      }
+    },
+    "Импортировать": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import"
+          }
+        }
+      }
+    },
+    "Выбрать файл выписки": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose statement file"
+          }
+        }
+      }
+    },
+    "Выгрузите выписку в приложении или интернет-банке в PDF и выберите файл.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export a PDF statement from your bank's app or online banking and choose the file."
+          }
+        }
+      }
+    },
+    "Банк": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bank"
+          }
+        }
+      }
+    },
+    "Файл": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File"
+          }
+        }
+      }
+    },
+    "Период": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Period"
+          }
+        }
+      }
+    },
+    "Остаток": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Balance"
+          }
+        }
+      }
+    },
+    "Новый: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New: %@"
+          }
+        }
+      }
+    },
+    "Итог": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Summary"
+          }
+        }
+      }
+    },
+    "Новых операций": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New transactions"
+          }
+        }
+      }
+    },
+    "Уже импортированы раньше": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Already imported"
+          }
+        }
+      }
+    },
+    "Переводы между своими счетами": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transfers between your accounts"
+          }
+        }
+      }
+    },
+    "Снятие наличных": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cash withdrawals"
+          }
+        }
+      }
+    },
+    "Предупреждения": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warnings"
+          }
+        }
+      }
+    },
+    "Переводы и наличные": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transfers and cash"
+          }
+        }
+      }
+    },
+    "Не попадают в доходы и расходы. Снимите отметку, если это не перевод.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not counted as income or expenses. Uncheck if it is not a transfer."
+          }
+        }
+      }
+    },
+    "Перевод": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transfer"
+          }
+        }
+      }
+    },
+    "перевод": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "transfer"
+          }
+        }
+      }
+    },
+    "Банк этой выписки пока не поддерживается.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This bank is not supported yet."
+          }
+        }
+      }
+    },
+    "В выписке нет операций.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The statement has no transactions."
+          }
+        }
+      }
+    },
+    "Не удалось открыть PDF.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not open the PDF."
+          }
+        }
+      }
+    },
+    "PDF защищён паролем. Выгрузите выписку без пароля.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The PDF is password-protected. Export the statement without a password."
+          }
+        }
+      }
+    },
+    "В PDF нет текста: похоже, это скан. Нужна выписка из приложения банка.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The PDF has no text and looks like a scan. Export the statement from your bank's app."
+          }
+        }
+      }
+    },
+    "В PDF есть повёрнутые страницы, такую выписку прочитать не получится.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The PDF has rotated pages and cannot be read."
+          }
+        }
+      }
+    },
+    "Формат файла не подходит для этого банка.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This file format does not match the bank."
+          }
+        }
+      }
+    },
+    "Не удалось разобрать выписку: не найдено «%@».": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not read the statement: “%@” not found."
+          }
+        }
+      }
+    },
+    "Не удалось разобрать выписку: строка %lld, %@ «%@».": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not read the statement: line %lld, %@ “%@”."
+          }
+        }
+      }
+    },
+    "Поддерживаются выписки в PDF и CSV.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PDF and CSV statements are supported."
+          }
+        }
+      }
+    },
+    "Не удалось прочитать файл.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not read the file."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
