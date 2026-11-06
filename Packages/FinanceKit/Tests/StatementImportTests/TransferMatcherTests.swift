@@ -136,4 +136,18 @@ struct TransferMatcherTests {
         ])
         #expect(pairs.isEmpty)
     }
+
+    @Test("Комиссия за перевод — не сторона перевода")
+    func transferFee() {
+        let pairs = TransferMatcher.pairs(in: [
+            transaction(card, -100, "Комиссия за перевод P2P"),
+            transaction(deposit, 100, "Перевод P2P", hours: 1),
+        ])
+        #expect(pairs.isEmpty)
+        // «NO FEE» у Приорбанка — не комиссия.
+        #expect(TransferMatcher.pairs(in: [
+            transaction(card, -100, "CH Debit BLR MINSK P2P SDBO NO FEE"),
+            transaction(deposit, 100, "CH Payment BLR MINSK P2P SDBO NO FEE", hours: 1),
+        ]).count == 1)
+    }
 }

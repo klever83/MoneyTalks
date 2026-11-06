@@ -89,4 +89,23 @@ struct CashWithdrawalsTests {
         #expect(usd.kind == .cash && usd.currency == .usd && usd.name == "Наличные")
         #expect(usd.id == CashWithdrawals.wallet(for: .usd, among: [], name: "Наличные").id)
     }
+
+    @Test("Комиссия за снятие остаётся расходом, даже с MCC банкомата")
+    func feeIsExpense() {
+        #expect(!CashWithdrawals.isCashOperation(transaction(-150, "Комиссия за снятие наличных", mcc: 6011)))
+        #expect(!CashWithdrawals.isCashOperation(transaction(-150, "Плата за выдачу наличных")))
+        #expect(!CashWithdrawals.isCashOperation(transaction(-150, "ATM BLR GOMEL FEE")))
+        let result = CashWithdrawals.pair([transaction(-150, "Комиссия за снятие наличных", mcc: 6011)]) { _ in Account.ID() }
+        #expect(result.walletTransactions.isEmpty)
+        #expect(result.transactions.first?.kind == .expense)
+    }
+
+    @Test("Удалённый кошелёк не воскрешается: новый получает другой идентификатор")
+    func deletedWalletNotRevived() {
+        var deleted = CashWithdrawals.wallet(for: .byn, among: [], name: "Наличные")
+        deleted.deletedAt = start
+        let fresh = CashWithdrawals.wallet(for: .byn, among: [deleted], name: "Наличные")
+        #expect(fresh.id != deleted.id)
+        #expect(fresh.deletedAt == nil)
+    }
 }

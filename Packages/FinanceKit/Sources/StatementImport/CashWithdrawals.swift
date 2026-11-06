@@ -12,7 +12,15 @@ public enum CashWithdrawals {
     static let cashMCC: Set<Int> = [6010, 6011]
 
     /// Операция с наличными: по MCC или по типу операции в описании банка.
+    /// Комиссия за снятие или перевод — расход, а не сама операция, даже с MCC банкомата.
+    /// «NO FEE» в описании P2P Приорбанка значит обратное и комиссией не считается.
+    public static func isFee(_ text: String) -> Bool {
+        let lowered = text.lowercased().replacingOccurrences(of: "no fee", with: "")
+        return lowered.contains("комисс") || lowered.contains("плата за") || lowered.contains(/\bfee\b/)
+    }
+
     public static func isCashOperation(_ transaction: FinanceTransaction) -> Bool {
+        if isFee(transaction.merchantRaw) { return false }
         if let mcc = transaction.mcc, cashMCC.contains(mcc) { return true }
         let text = transaction.merchantRaw
         // Приорбанк: тип операции в начале описания, `ATM BLR GOMEL …`, `Cash BLR Minsk Dop.ofis …`.
@@ -23,13 +31,15 @@ public enum CashWithdrawals {
     }
 
     /// Кошелёк для наличных в валюте: свой счёт «Наличные» пользователя, если он уже есть,
-    /// иначе новый с постоянным идентификатором (тот же на любом устройстве).
+    /// иначе новый с постоянным идентификатором (тот же на любом устройстве). Если кошелёк с этим
+    /// идентификатором пользователь удалил, новый получает случайный: удалённый не воскрешается.
     public static func wallet(for currency: Currency, among accounts: [Account], name: String, now: Date = .now) -> Account {
         if let existing = accounts.first(where: { $0.kind == .cash && $0.currency == currency && $0.deletedAt == nil }) {
             return existing
         }
+        let stableID = Account.ID(UUID(v5: "cash-wallet|\(currency.code)", namespace: namespace))
         return Account(
-            id: Account.ID(UUID(v5: "cash-wallet|\(currency.code)", namespace: namespace)),
+            id: accounts.contains { $0.id == stableID } ? Account.ID() : stableID,
             name: name,
             kind: .cash,
             currency: currency,

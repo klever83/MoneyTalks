@@ -147,6 +147,7 @@ public enum TransferMatcher {
 
     static func looksLikeTransfer(_ transaction: FinanceTransaction) -> Bool {
         if let mcc = transaction.mcc, !transferMCC.contains(mcc) { return false }
+        if CashWithdrawals.isFee(transaction.merchantRaw) { return false }
         let text = transaction.merchantRaw.lowercased()
         return transferWords.contains { text.contains($0) }
     }
