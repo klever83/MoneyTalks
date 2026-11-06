@@ -756,6 +756,36 @@
           }
         }
       }
+    },
+    "Удалить счёт?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete account?"
+          }
+        }
+      }
+    },
+    "Удалить счёт": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete account"
+          }
+        }
+      }
+    },
+    "Счёт «%@» и все его операции будут удалены.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” and all its transactions will be deleted."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

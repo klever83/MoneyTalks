@@ -44,6 +44,7 @@ final class AccountsViewModel {
 public struct AccountsScreen: View {
     @State private var model: AccountsViewModel
     @State private var isAdding = false
+    @State private var accountToDelete: Account?
 
     public init(repository: any AccountRepository) {
         _model = State(initialValue: AccountsViewModel(repository: repository))
@@ -56,7 +57,7 @@ public struct AccountsScreen: View {
                     AccountRow(account: account)
                         .swipeActions {
                             Button("Удалить", systemImage: "trash", role: .destructive) {
-                                Task { await model.delete(account) }
+                                accountToDelete = account
                             }
                         }
                 }
@@ -80,6 +81,21 @@ public struct AccountsScreen: View {
                 AddAccountForm { name, kind, currency in
                     Task { await model.add(name: name, kind: kind, currency: currency) }
                 }
+            }
+            .confirmationDialog(
+                "Удалить счёт?",
+                isPresented: Binding(
+                    get: { accountToDelete != nil },
+                    set: { if !$0 { accountToDelete = nil } }
+                ),
+                titleVisibility: .visible,
+                presenting: accountToDelete
+            ) { account in
+                Button("Удалить счёт", role: .destructive) {
+                    Task { await model.delete(account) }
+                }
+            } message: { account in
+                Text("Счёт «\(account.name)» и все его операции будут удалены.")
             }
             .task { await model.observe() }
         }

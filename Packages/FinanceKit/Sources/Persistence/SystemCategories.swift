@@ -1,6 +1,7 @@
 import Domain
 
-/// Категории, которые создаются при первом запуске. Названия локализуются по `systemKey`.
+/// Категории, которые создаются при первом запуске. Названия локализуются по `systemKey`,
+/// ID детерминированы (`FinanceCategory.systemID(for:)`) и совпадают на всех устройствах.
 enum SystemCategories {
     static let all: [FinanceCategory] = [
         expense("groceries", "Продукты", "cart", "#34C759"),
@@ -22,10 +23,16 @@ enum SystemCategories {
     ]
 
     private static func expense(_ key: String, _ name: String, _ image: String, _ color: String) -> FinanceCategory {
-        FinanceCategory(name: name, systemKey: key, systemImage: image, colorHex: color, kind: .expense)
+        FinanceCategory(
+            id: FinanceCategory.systemID(for: key),
+            name: name, systemKey: key, systemImage: image, colorHex: color, kind: .expense
+        )
     }
 
     private static func income(_ key: String, _ name: String, _ image: String, _ color: String) -> FinanceCategory {
-        FinanceCategory(name: name, systemKey: key, systemImage: image, colorHex: color, kind: .income)
+        FinanceCategory(
+            id: FinanceCategory.systemID(for: key),
+            name: name, systemKey: key, systemImage: image, colorHex: color, kind: .income
+        )
     }
 }

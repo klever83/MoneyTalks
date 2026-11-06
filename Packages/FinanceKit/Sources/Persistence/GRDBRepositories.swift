@@ -36,6 +36,10 @@ public struct GRDBAccountRepository: AccountRepository {
             _ = try AccountRecord
                 .filter(key: id.rawValue)
                 .updateAll(db, deletedAt.set(to: now), Column("updatedAt").set(to: now))
+            // Операции удалённого счёта не должны оставаться в ленте и в итогах.
+            _ = try TransactionRecord
+                .filter(Column("accountID") == id.rawValue && deletedAt == nil)
+                .updateAll(db, deletedAt.set(to: now), Column("updatedAt").set(to: now))
         }
     }
 }

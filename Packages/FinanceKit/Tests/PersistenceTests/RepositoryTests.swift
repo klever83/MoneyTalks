@@ -25,6 +25,39 @@ struct RepositoryTests {
         #expect(all.contains { $0.systemKey == "salary" && $0.kind == .income })
     }
 
+    @Test("ID системных категорий одинаковы в разных базах")
+    func systemCategoryIDsAreStable() async throws {
+        let other = GRDBCategoryRepository(database: try AppDatabase.inMemory())
+        let first = try await categories.categories()
+        let second = try await other.categories()
+        for category in first {
+            let key = try #require(category.systemKey)
+            #expect(category.id == FinanceCategory.systemID(for: key))
+            #expect(second.first { $0.systemKey == key }?.id == category.id)
+        }
+    }
+
+    @Test("Удаление счёта скрывает его операции, операции других счетов остаются")
+    func deletingAccountHidesItsTransactions() async throws {
+        let card = Account(name: "Карта", kind: .card, currency: .byn)
+        let cash = Account(name: "Наличные", kind: .cash, currency: .byn)
+        try await accounts.save(card)
+        try await accounts.save(cash)
+        let onCard = FinanceTransaction(
+            accountID: card.id, bookedAt: Date(timeIntervalSince1970: 1_000),
+            amount: Money(minorUnits: -100, currency: .byn), merchantRaw: "A", source: .manual
+        )
+        let inCash = FinanceTransaction(
+            accountID: cash.id, bookedAt: Date(timeIntervalSince1970: 2_000),
+            amount: Money(minorUnits: -200, currency: .byn), merchantRaw: "B", source: .manual
+        )
+        try await transactions.save([onCard, inCash])
+
+        try await accounts.delete(card.id)
+
+        #expect(try await transactions.transactions(TransactionQuery()).map(\.id) == [inCash.id])
+    }
+
     @Test("Операция сохраняется и читается без потерь")
     func roundTrip() async throws {
         let account = Account(name: "Карта", kind: .card, currency: .byn)

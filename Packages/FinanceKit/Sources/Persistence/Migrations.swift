@@ -4,8 +4,9 @@ import GRDB
 extension AppDatabase {
     static var migrator: DatabaseMigrator {
         var migrator = DatabaseMigrator()
-        #if DEBUG
-        // Пока схема меняется часто, в отладке база пересоздаётся при изменении миграций.
+        #if DEBUG && targetEnvironment(simulator)
+        // Пока схема меняется часто, в симуляторе база пересоздаётся при изменении миграций.
+        // На реальном устройстве никогда: там могут быть настоящие данные.
         migrator.eraseDatabaseOnSchemaChange = true
         #endif
 
