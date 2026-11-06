@@ -59,18 +59,32 @@ public struct BelarusbankParser: StatementParser {
         guard let accountCurrency else { throw .missingColumn("Валюта счета") }
 
         // Шапка таблицы: от строки «Дата» до строки «по счету». Слова шапки стоят строго
-        // в своих колонках, поэтому границы по ним надёжнее, чем по данным.
+        // в своих колонках, поэтому по ним видно, сколько колонок и где они примерно.
         guard let headerStart = lines.firstIndex(where: { $0.text == "Дата" }),
               let headerEnd = lines[headerStart...].firstIndex(where: { $0.text == "по счету" })
         else { throw .missingColumn("Шапка таблицы") }
-        let boundaries = TableExtractor.columnBoundaries(for: Array(lines[headerStart...headerEnd]))
-        guard boundaries.count == Column.allCases.count - 1 else { throw .missingColumn("Колонки таблицы") }
+        let headerLines = Array(lines[headerStart...headerEnd])
+        let headerBoundaries = TableExtractor.columnBoundaries(for: headerLines)
+        guard headerBoundaries.count == Column.allCases.count - 1 else { throw .missingColumn("Колонки таблицы") }
 
+        // Колонтитулов и текста после таблицы в выписке нет (проверено на реальных выписках),
+        // поэтому таблица идёт от шапки до конца каждой страницы.
         let tableLines = TableExtractor.tableLines(
             in: layout,
             isHeader: { $0.text == "по счету" },
             isFooter: { _ in false }
         )
+        // Шапка центрирована и уже данных: длинное «Место» может перейти середину просвета шапки
+        // и уехать в «Валюту». Поэтому точные границы — по просветам в данных, если они дают те же
+        // колонки, что и шапка (пустая во всей выписке колонка, например, их не даст); иначе по шапке.
+        // Порог 3 pt: шире пробела в номере карты (~2 pt), уже самого узкого отступа колонок (~5 pt).
+        let fromData = TableExtractor.columnBoundaries(for: tableLines, minGap: 3)
+        // Граница из данных должна лежать между соседними границами шапки: тогда колонки те же.
+        let sameColumns = fromData.count == headerBoundaries.count && fromData.indices.allSatisfy { index in
+            (index == 0 || fromData[index] > headerBoundaries[index - 1])
+                && (index == fromData.count - 1 || fromData[index] < headerBoundaries[index + 1])
+        }
+        let boundaries = sameColumns ? fromData : headerBoundaries
         let table = TableExtractor.rows(tableLines, boundaries: boundaries) { cells in
             cells[Column.performedAt.rawValue].wholeMatch(of: /\d{2}\.\d{2}\.\d{4}.*/) != nil
         }
@@ -88,6 +102,12 @@ public struct BelarusbankParser: StatementParser {
                 continue
             }
             let sign: Decimal = cell(.direction) == "Расход" ? -1 : 1
+            if cell(.currency).wholeMatch(of: /[A-Z]{3}/) == nil || cell(.mcc).wholeMatch(of: /\d*/) == nil {
+                warnings.append(ParseWarning(
+                    line: nil,
+                    message: "Операция №\(index + 1): колонки «Валюта»/«МСС» прочитаны неточно, проверьте сумму в валюте операции"
+                ))
+            }
             var original: Money?
             let currencyCode = cell(.currency)
             if currencyCode.wholeMatch(of: /[A-Z]{3}/) != nil, currencyCode != accountCurrency.code,

@@ -187,4 +187,27 @@ struct BelarusbankParserTests {
         #expect(BelarusbankParser().confidence(for: prior) < 0.3)
         #expect(PriorbankParser().confidence(for: own) < 0.3)
     }
+
+    @Test("Длинное «Место» за серединой просвета шапки не уезжает в «Валюту»")
+    func longPlace() throws {
+        var rows = Self.rows
+        rows[3].place = ["SHOP ABROAD"]
+        var pdf = Self.statement(rows: rows, closing: "620.51")
+        // Операция в USD (четвёртая), средняя строка на y = 354 + 3 × 30 + 6. Строка «Места» доходит
+        // почти до «Валюты»: середина последнего слова правее середины просвета между заголовками.
+        pdf.text("CENTRUM WARSZAWA XL", x: 364, y: 456, .right)
+        let statement = try Self.parse(pdf)
+        #expect(statement.rows[3].description == "Оплата товаров и услуг SHOP ABROAD CENTRUM WARSZAWA XL")
+        #expect(statement.rows[3].originalAmount == Money(minorUnits: -1_000, currency: .usd))
+        #expect(statement.warnings.isEmpty, "\(statement.warnings)")
+    }
+
+    @Test("Нечитаемая валюта операции даёт предупреждение")
+    func garbledCurrency() throws {
+        var rows = Self.rows
+        rows[3].currency = "U5D"
+        let statement = try Self.parse(Self.statement(rows: rows, closing: "620.51"))
+        #expect(statement.rows[3].originalAmount == nil)
+        #expect(statement.warnings.contains { $0.message.hasPrefix("Операция №4") })
+    }
 }
