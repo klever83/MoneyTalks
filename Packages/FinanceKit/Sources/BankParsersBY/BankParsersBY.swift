@@ -8,6 +8,7 @@ public enum BankParsersBY {
     public static let all: [any StatementParser] = [
         PriorbankParser(),
         BelarusbankParser(),
+        AlfabankParser(),
     ]
 
     public static let belarusbank = BankInfo(id: "by.belarusbank", name: "Беларусбанк", country: "BY")
