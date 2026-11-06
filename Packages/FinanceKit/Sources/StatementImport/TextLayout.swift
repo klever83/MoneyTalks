@@ -140,3 +140,26 @@ public enum TextLayoutBuilder {
         return values.sorted()[values.count / 2]
     }
 }
+
+extension TextLine {
+    /// Группы слов, разделённые просветом шире `minGap`: в таблицах без рамок это обычно ячейки.
+    /// Слова внутри группы склеиваются через пробел, так `1 899.13` остаётся одной суммой.
+    public func segments(minGap: CGFloat) -> [String] {
+        segmentWords(minGap: minGap).map { $0.map(\.text).joined(separator: " ") }
+    }
+
+    /// То же, что `segments(minGap:)`, но со словами и их рамками: нужно, когда важно, где ячейка стоит.
+    public func segmentWords(minGap: CGFloat) -> [[TextWord]] {
+        var segments: [[TextWord]] = []
+        var lastMaxX: CGFloat?
+        for word in words.sorted(by: { $0.frame.minX < $1.frame.minX }) {
+            if let lastMaxX, word.frame.minX - lastMaxX < minGap {
+                segments[segments.count - 1].append(word)
+            } else {
+                segments.append([word])
+            }
+            lastMaxX = max(lastMaxX ?? word.frame.maxX, word.frame.maxX)
+        }
+        return segments
+    }
+}

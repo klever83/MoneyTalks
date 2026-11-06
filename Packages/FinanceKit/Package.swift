@@ -46,6 +46,7 @@ let package = Package(
         .testTarget(name: "DomainTests", dependencies: ["Domain"]),
         .testTarget(name: "PersistenceTests", dependencies: ["Persistence"]),
         .testTarget(name: "StatementImportTests", dependencies: ["StatementImport"]),
+        .testTarget(name: "BankParsersBYTests", dependencies: ["BankParsersBY", "StatementImport", "Domain"]),
         .testTarget(name: "CategorizationTests", dependencies: ["Categorization"]),
         .testTarget(name: "ExchangeRatesTests", dependencies: ["ExchangeRates"]),
         .testTarget(name: "AnalyticsTests", dependencies: ["Analytics"]),
