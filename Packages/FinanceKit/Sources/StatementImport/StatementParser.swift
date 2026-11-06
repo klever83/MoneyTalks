@@ -5,11 +5,12 @@ public enum StatementFormat: String, Sendable, Hashable, CaseIterable {
     case csv, xlsx, pdf
 }
 
-/// Файл выписки, уже прочитанный в таблицу (CSV/XLSX) или в текст по страницам (PDF).
+/// Файл выписки, уже прочитанный в таблицу (CSV/XLSX) или в текст с координатами (PDF).
 public struct StatementDocument: Sendable {
     public enum Content: Sendable {
         case table([[String]])
-        case text(pages: [String])
+        /// PDF: строки и слова с координатами, из них парсер банка собирает таблицу (`TableExtractor`).
+        case layout(TextLayout)
     }
 
     public var fileName: String
