@@ -30,6 +30,16 @@ public struct GRDBAccountRepository: AccountRepository {
         }
     }
 
+    public func deletedAccountIDs() async throws -> Set<Account.ID> {
+        try await database.writer.read { db in
+            Set(try AccountRecord
+                .filter(deletedAt != nil)
+                .select(Column("id"), as: UUID.self)
+                .fetchAll(db)
+                .map(Account.ID.init))
+        }
+    }
+
     public func delete(_ id: Account.ID) async throws {
         let now = Date.now
         try await database.writer.write { db in
@@ -89,7 +99,7 @@ public struct GRDBTransactionRepository: TransactionRepository {
     public func fingerprints(accountID: Account.ID) async throws -> Set<String> {
         try await database.writer.read { db in
             try TransactionRecord
-                .filter(Column("accountID") == accountID.rawValue && Column("fingerprint") != nil && deletedAt == nil)
+                .filter(Column("accountID") == accountID.rawValue && Column("fingerprint") != nil)
                 .select(Column("fingerprint"), as: String.self)
                 .fetchSet(db)
         }
@@ -153,7 +163,7 @@ public struct GRDBImportRepository: ImportRepository {
         self.database = database
     }
 
-    public func commitImport(accounts: [Account], transactions: [FinanceTransaction]) async throws {
+    public func commitImport(accounts: [Account], transactions: [FinanceTransaction], links: [TransferLink]) async throws {
         let now = Date.now
         let accountRecords = accounts.map { account in
             var account = account
@@ -171,6 +181,19 @@ public struct GRDBImportRepository: ImportRepository {
             }
             for record in transactionRecords {
                 try record.save(db)
+            }
+            for link in links {
+                let changed = try TransactionRecord
+                    .filter(key: link.transactionID.rawValue)
+                    .filter(deletedAt == nil && Column("transferPairID") == nil && Column("categoryLocked") == false)
+                    .updateAll(
+                        db,
+                        Column("kind").set(to: FinanceTransaction.Kind.transfer.rawValue),
+                        Column("transferPairID").set(to: link.pairID),
+                        Column("categoryID").set(to: nil),
+                        Column("updatedAt").set(to: now)
+                    )
+                guard changed == 1 else { throw ImportCommitError.transactionChanged }
             }
         }
     }

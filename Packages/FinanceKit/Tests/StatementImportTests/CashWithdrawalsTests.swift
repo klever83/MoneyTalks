@@ -107,5 +107,8 @@ struct CashWithdrawalsTests {
         let fresh = CashWithdrawals.wallet(for: .byn, among: [deleted], name: "Наличные")
         #expect(fresh.id != deleted.id)
         #expect(fresh.deletedAt == nil)
+        // Удалённый счёт может и не попасть в список счетов: тогда его передают отдельно.
+        let other = CashWithdrawals.wallet(for: .byn, among: [], deletedIDs: [deleted.id], name: "Наличные")
+        #expect(other.id != deleted.id)
     }
 }

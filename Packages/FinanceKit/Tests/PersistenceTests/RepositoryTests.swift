@@ -115,7 +115,7 @@ struct RepositoryTests {
             accountID: account.id, bookedAt: .now, amount: Money(minorUnits: -500, currency: .byn),
             merchantRaw: "Кофе", source: .imported, fingerprint: "h:1"
         )
-        try await imports.commitImport(accounts: [account], transactions: [transaction])
+        try await imports.commitImport(accounts: [account], transactions: [transaction], links: [])
         #expect(try await transactions.transactions(TransactionQuery(accountID: account.id)).map(\.id) == [transaction.id])
         #expect(try await transactions.fingerprints(accountID: account.id) == ["h:1"])
 
@@ -126,8 +126,83 @@ struct RepositoryTests {
         )
         let second = Account(name: "Вторая", kind: .card, currency: .byn)
         await #expect(throws: (any Error).self) {
-            try await imports.commitImport(accounts: [second], transactions: [orphan])
+            try await imports.commitImport(accounts: [second], transactions: [orphan], links: [])
         }
+        var names: [String] = []
+        for try await list in accounts.observeAccounts() {
+            names = list.map(\.name)
+            break
+        }
+        #expect(names == ["Карта"])
+    }
+
+    @Test("Удалённые операции и счета учитываются при импорте")
+    func deletedStillCount() async throws {
+        let account = Account(name: "Карта", kind: .card, currency: .byn)
+        let wallet = Account(name: "Наличные", kind: .cash, currency: .byn)
+        try await accounts.save(account)
+        try await accounts.save(wallet)
+        let transaction = FinanceTransaction(
+            accountID: account.id, bookedAt: .now, amount: Money(minorUnits: -500, currency: .byn),
+            merchantRaw: "Кофе", source: .imported, fingerprint: "h:deleted"
+        )
+        try await transactions.save([transaction])
+        try await transactions.delete(transaction.id)
+        try await accounts.delete(wallet.id)
+
+        #expect(try await transactions.fingerprints(accountID: account.id) == ["h:deleted"])
+        // Через протокол, как в ImportModel: должна вызываться реализация GRDB, а не заглушка по умолчанию.
+        let repository: any AccountRepository = accounts
+        #expect(try await repository.deletedAccountIDs() == [wallet.id])
+    }
+
+    @Test("Сохранённая сторона перевода обновляется точечно, изменённая откатывает импорт")
+    func commitImportLinks() async throws {
+        let imports = GRDBImportRepository(database: database)
+        let groceries = try #require(try await categories.categories().first { $0.systemKey == "groceries" })
+        let account = Account(name: "Карта", kind: .card, currency: .byn)
+        try await accounts.save(account)
+        var saved = FinanceTransaction(
+            accountID: account.id, bookedAt: .now, amount: Money(minorUnits: 500, currency: .byn),
+            merchantRaw: "Пополнение", source: .imported, fingerprint: "h:in"
+        )
+        saved.note = "Заметка пользователя"
+        saved.categoryID = groceries.id
+        try await transactions.save([saved])
+
+        let pairID = UUID()
+        try await imports.commitImport(
+            accounts: [], transactions: [], links: [TransferLink(transactionID: saved.id, pairID: pairID)]
+        )
+        let updated = try #require(try await transactions.transactions(TransactionQuery()).first)
+        #expect(updated.kind == .transfer && updated.transferPairID == pairID && updated.categoryID == nil)
+        #expect(updated.note == "Заметка пользователя" && updated.merchantRaw == "Пополнение")
+
+        // Уже связанная (или удалённая) операция не перезаписывается, и новые данные не сохраняются.
+        let other = Account(name: "Вторая", kind: .card, currency: .byn)
+        await #expect(throws: ImportCommitError.transactionChanged) {
+            try await imports.commitImport(
+                accounts: [other], transactions: [], links: [TransferLink(transactionID: saved.id, pairID: UUID())]
+            )
+        }
+        #expect(try await transactions.transactions(TransactionQuery()).first?.transferPairID == pairID)
+
+        // Категорию, закреплённую пользователем во время превью, импорт тоже не перезаписывает.
+        var locked = FinanceTransaction(
+            accountID: account.id, bookedAt: .now, amount: Money(minorUnits: -700, currency: .byn),
+            merchantRaw: "Подарок", source: .imported, fingerprint: "h:locked"
+        )
+        locked.categoryID = groceries.id
+        locked.categoryLocked = true
+        try await transactions.save([locked])
+        await #expect(throws: ImportCommitError.transactionChanged) {
+            try await imports.commitImport(
+                accounts: [], transactions: [], links: [TransferLink(transactionID: locked.id, pairID: UUID())]
+            )
+        }
+        let stillLocked = try #require(try await transactions.transactions(TransactionQuery()).first { $0.id == locked.id })
+        #expect(stillLocked.kind == .expense && stillLocked.categoryID == groceries.id)
+
         var names: [String] = []
         for try await list in accounts.observeAccounts() {
             names = list.map(\.name)
