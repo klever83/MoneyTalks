@@ -8,12 +8,14 @@ public struct Dependencies: Sendable {
     public let accounts: any AccountRepository
     public let transactions: any TransactionRepository
     public let categories: any CategoryRepository
+    public let imports: any ImportRepository
     public let parserRegistry: ParserRegistry
 
     init(database: AppDatabase) {
         accounts = GRDBAccountRepository(database: database)
         transactions = GRDBTransactionRepository(database: database)
         categories = GRDBCategoryRepository(database: database)
+        imports = GRDBImportRepository(database: database)
         parserRegistry = ParserRegistry(parsers: BankParsersBY.all)
     }
 

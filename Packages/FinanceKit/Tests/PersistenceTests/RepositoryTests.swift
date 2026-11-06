@@ -106,4 +106,33 @@ struct RepositoryTests {
         try await transactions.delete(late.id)
         #expect(try await transactions.transactions(TransactionQuery()).map(\.id) == [early.id])
     }
+
+    @Test("Импорт сохраняет счета и операции одной транзакцией")
+    func commitImport() async throws {
+        let imports = GRDBImportRepository(database: database)
+        let account = Account(name: "Карта", kind: .card, currency: .byn)
+        let transaction = FinanceTransaction(
+            accountID: account.id, bookedAt: .now, amount: Money(minorUnits: -500, currency: .byn),
+            merchantRaw: "Кофе", source: .imported, fingerprint: "h:1"
+        )
+        try await imports.commitImport(accounts: [account], transactions: [transaction])
+        #expect(try await transactions.transactions(TransactionQuery(accountID: account.id)).map(\.id) == [transaction.id])
+        #expect(try await transactions.fingerprints(accountID: account.id) == ["h:1"])
+
+        // Операция на несуществующем счёте нарушает внешний ключ: не сохраняется ничего.
+        let orphan = FinanceTransaction(
+            accountID: Account.ID(), bookedAt: .now, amount: Money(minorUnits: -100, currency: .byn),
+            merchantRaw: "Сирота", source: .imported
+        )
+        let second = Account(name: "Вторая", kind: .card, currency: .byn)
+        await #expect(throws: (any Error).self) {
+            try await imports.commitImport(accounts: [second], transactions: [orphan])
+        }
+        var names: [String] = []
+        for try await list in accounts.observeAccounts() {
+            names = list.map(\.name)
+            break
+        }
+        #expect(names == ["Карта"])
+    }
 }

@@ -35,3 +35,9 @@ public protocol CategoryRepository: Sendable {
     func categories() async throws -> [FinanceCategory]
     func save(_ category: FinanceCategory) async throws
 }
+
+public protocol ImportRepository: Sendable {
+    /// Сохраняет результат импорта одной транзакцией базы: новые счета и операции
+    /// (в том числе обновлённые стороны переводов). Либо всё, либо ничего.
+    func commitImport(accounts: [Account], transactions: [FinanceTransaction]) async throws
+}

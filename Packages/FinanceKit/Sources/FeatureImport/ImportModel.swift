@@ -1,0 +1,250 @@
+import Domain
+import Foundation
+import StatementImport
+
+/// Импорт выписки: файл → банк → превью → сохранение.
+@MainActor
+@Observable
+final class ImportModel {
+    enum Phase: Equatable {
+        case idle
+        case working
+        case choosingBank
+        case preview
+        case done(imported: Int)
+        case failed(String)
+    }
+
+    /// Счёт, в который идёт выписка.
+    enum Target: Hashable {
+        case new
+        case existing(Account.ID)
+    }
+
+    struct BankOption: Identifiable {
+        var id: String { parser.id.rawValue }
+        var name: String { parser.bank.name }
+        let parser: any StatementParser
+    }
+
+    private(set) var phase: Phase = .idle
+    private(set) var accounts: [Account] = []
+    private(set) var bankOptions: [BankOption] = []
+    private(set) var plan: ImportPlan?
+    private(set) var proposedAccount: Account?
+    private(set) var fileName = ""
+    private(set) var target: Target = .new
+    private var document: StatementDocument?
+    private var statement: ParsedStatement?
+    private var bank: BankInfo?
+    private var excluded: Set<UUID> = []
+    private var batchID = UUID()
+
+    private let registry: ParserRegistry
+    private let accountRepository: any AccountRepository
+    private let transactionRepository: any TransactionRepository
+    private let importRepository: any ImportRepository
+
+    init(
+        registry: ParserRegistry,
+        accounts: any AccountRepository,
+        transactions: any TransactionRepository,
+        imports: any ImportRepository
+    ) {
+        self.registry = registry
+        accountRepository = accounts
+        transactionRepository = transactions
+        importRepository = imports
+    }
+
+    /// Счета, в которые можно положить выписку: той же валюты, кроме наличных.
+    var targetAccounts: [Account] {
+        guard let currency = proposedAccount?.currency else { return [] }
+        return accounts.filter { $0.kind != .cash && $0.currency == currency }
+    }
+
+    func observeAccounts() async {
+        do {
+            for try await items in accountRepository.observeAccounts() {
+                accounts = items
+            }
+        } catch {
+            phase = .failed(error.localizedDescription)
+        }
+    }
+
+    // MARK: - Шаги
+
+    func open(_ url: URL) async {
+        reset()
+        phase = .working
+        fileName = url.lastPathComponent
+        do {
+            let name = fileName
+            let document = try await Task.detached(priority: .userInitiated) {
+                let access = url.startAccessingSecurityScopedResource()
+                defer { if access { url.stopAccessingSecurityScopedResource() } }
+                return try Self.readDocument(Data(contentsOf: url), fileName: name)
+            }.value
+            self.document = document
+            if let parser = registry.bestMatch(for: document) {
+                await parse(with: parser)
+            } else {
+                bankOptions = registry.parsers
+                    .filter { $0.formats.contains(document.format) }
+                    .map(BankOption.init)
+                phase = bankOptions.isEmpty
+                    ? .failed(String(localized: "Банк этой выписки пока не поддерживается."))
+                    : .choosingBank
+            }
+        } catch {
+            phase = .failed(Self.message(for: error))
+        }
+    }
+
+    func choose(_ option: BankOption) async {
+        phase = .working
+        await parse(with: option.parser)
+    }
+
+    func setTarget(_ target: Target) async {
+        guard target != self.target else { return }
+        self.target = target
+        await replan()
+    }
+
+    func setIncluded(_ included: Bool, link: ImportLink) async {
+        if included { excluded.remove(link.id) } else { excluded.insert(link.id) }
+        await replan()
+    }
+
+    func confirm() async {
+        guard let plan else { return }
+        phase = .working
+        do {
+            try await importRepository.commitImport(accounts: plan.accountsToSave, transactions: plan.transactionsToSave)
+            phase = .done(imported: plan.newTransactions.count)
+        } catch {
+            phase = .failed(error.localizedDescription)
+        }
+    }
+
+    func reset() {
+        phase = .idle
+        document = nil
+        statement = nil
+        bank = nil
+        plan = nil
+        proposedAccount = nil
+        bankOptions = []
+        excluded = []
+        target = .new
+        batchID = UUID()
+    }
+
+    // MARK: - Внутреннее
+
+    private func parse(with parser: any StatementParser) async {
+        guard let document else { return }
+        do {
+            let statement = try await Task.detached(priority: .userInitiated) {
+                try parser.parse(document)
+            }.value
+            guard !statement.rows.isEmpty else {
+                phase = .failed(String(localized: "В выписке нет операций."))
+                return
+            }
+            self.statement = statement
+            bank = parser.bank
+            let proposed = ImportPlanner.proposedAccount(for: statement, bank: parser.bank)
+            proposedAccount = proposed
+            target = ImportPlanner.matchAccount(for: statement.accountHint, bank: parser.bank, among: accounts)
+                .map { .existing($0.id) } ?? .new
+            await replan()
+        } catch {
+            phase = .failed(Self.message(for: error))
+        }
+    }
+
+    private func replan() async {
+        guard let statement, let bank, let proposedAccount else { return }
+        let account: Account
+        let isNew: Bool
+        switch target {
+        case .new:
+            account = proposedAccount
+            isNew = true
+        case let .existing(id):
+            guard let existing = accounts.first(where: { $0.id == id }) else { return }
+            account = existing
+            isNew = false
+        }
+        do {
+            let fingerprints = isNew ? [] : try await transactionRepository.fingerprints(accountID: account.id)
+            let dates = statement.rows.map(\.bookedAt)
+            let window = TransferMatcher.defaultWindow
+            var recent: [FinanceTransaction] = []
+            if let first = dates.min(), let last = dates.max() {
+                let interval = DateInterval(start: first.addingTimeInterval(-window), end: last.addingTimeInterval(window + 1))
+                recent = try await transactionRepository.transactions(TransactionQuery(interval: interval))
+            }
+            plan = ImportPlanner.plan(
+                statement: statement,
+                bank: bank,
+                account: account,
+                isNewAccount: isNew,
+                existingFingerprints: fingerprints,
+                existingAccounts: accounts,
+                recentTransactions: recent,
+                walletName: String(localized: "Наличные"),
+                excludedLinks: excluded,
+                batchID: batchID
+            )
+            phase = .preview
+        } catch {
+            phase = .failed(error.localizedDescription)
+        }
+    }
+
+    nonisolated static func readDocument(_ data: Data, fileName: String) throws -> StatementDocument {
+        switch (fileName as NSString).pathExtension.lowercased() {
+        case "pdf":
+            return try PDFStatementReader.document(from: data, fileName: fileName)
+        case "csv", "txt":
+            guard let text = CSVReader.decode(data) else { throw ImportFileError.unreadable }
+            return StatementDocument(fileName: fileName, format: .csv, content: .table(CSVReader.parse(text)))
+        default:
+            throw ImportFileError.unsupported
+        }
+    }
+
+    static func message(for error: any Error) -> String {
+        switch error {
+        case let failure as PDFStatementReader.Failure:
+            switch failure {
+            case .unreadable: String(localized: "Не удалось открыть PDF.")
+            case .locked: String(localized: "PDF защищён паролем. Выгрузите выписку без пароля.")
+            case .noText: String(localized: "В PDF нет текста: похоже, это скан. Нужна выписка из приложения банка.")
+            case .rotatedPage: String(localized: "В PDF есть повёрнутые страницы, такую выписку прочитать не получится.")
+            }
+        case let failure as ParseError:
+            switch failure {
+            case .unsupportedFormat: String(localized: "Формат файла не подходит для этого банка.")
+            case let .missingColumn(name): String(localized: "Не удалось разобрать выписку: не найдено «\(name)».")
+            case let .invalidValue(line, field, value):
+                String(localized: "Не удалось разобрать выписку: строка \(line), \(field) «\(value)».")
+            }
+        case ImportFileError.unsupported:
+            String(localized: "Поддерживаются выписки в PDF и CSV.")
+        case ImportFileError.unreadable:
+            String(localized: "Не удалось прочитать файл.")
+        default:
+            error.localizedDescription
+        }
+    }
+}
+
+enum ImportFileError: Error {
+    case unsupported
+    case unreadable
+}
