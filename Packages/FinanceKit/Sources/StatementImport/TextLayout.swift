@@ -5,7 +5,7 @@ import Foundation
 /// а не по порядку, в котором их записал генератор PDF.
 ///
 /// Система координат: начало в левом верхнем углу страницы, `y` растёт вниз.
-public struct TextLayout: Hashable, Sendable {
+public struct TextLayout: Hashable, Codable, Sendable {
     public var pages: [TextPage]
 
     public init(pages: [TextPage]) {
@@ -17,24 +17,32 @@ public struct TextLayout: Hashable, Sendable {
         pages.map { $0.lines.map(\.text).joined(separator: "\n") }.joined(separator: "\n\n")
     }
 
-    /// Все строки документа подряд, со всех страниц.
+    /// Все строки документа подряд, со всех страниц. Координаты у каждой страницы свои.
     public var lines: [TextLine] {
         pages.flatMap(\.lines)
     }
+
+    public var uncertainWords: Int {
+        pages.reduce(0) { $0 + $1.uncertainWords }
+    }
 }
 
-public struct TextPage: Hashable, Sendable {
+public struct TextPage: Hashable, Codable, Sendable {
     public var size: CGSize
     public var lines: [TextLine]
+    /// Слова, положение которых по вертикали пришлось угадать (PDFKit не дал точных рамок).
+    /// Если не ноль, парсеру стоит предупредить пользователя: описания могли перепутаться.
+    public var uncertainWords: Int
 
-    public init(size: CGSize, lines: [TextLine]) {
+    public init(size: CGSize, lines: [TextLine], uncertainWords: Int = 0) {
         self.size = size
         self.lines = lines
+        self.uncertainWords = uncertainWords
     }
 }
 
 /// Строка: слова с общей вертикалью, слева направо.
-public struct TextLine: Hashable, Sendable {
+public struct TextLine: Hashable, Codable, Sendable {
     public var words: [TextWord]
 
     public init(words: [TextWord]) {
@@ -51,7 +59,7 @@ public struct TextLine: Hashable, Sendable {
 }
 
 /// Слово: символы без пробела между ними.
-public struct TextWord: Hashable, Sendable {
+public struct TextWord: Hashable, Codable, Sendable {
     public var text: String
     public var frame: CGRect
 
