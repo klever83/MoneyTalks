@@ -110,4 +110,30 @@ struct TransferMatcherTests {
         let into = transaction(deposit, 10_000)
         #expect(TransferMatcher.pairs(in: [out, into]).first?.id == TransferMatcher.pairs(in: [into, out]).first?.id)
     }
+
+    @Test("Одна сумма без признаков перевода — не пара: заправка и перевод от друга")
+    func sameAmountWithoutTransferSigns() {
+        let fuel = transaction(card, -5_000, "Retail BLR MINSK AZS N12")
+        let friend = transaction(deposit, 5_000, "Зачисление перевода от физлица", hours: 20)
+        #expect(TransferMatcher.pairs(in: [fuel, friend]).isEmpty)
+    }
+
+    @Test("MCC покупки исключает перевод, даже если в описании есть «перевод»")
+    func purchaseMCC() {
+        var out = transaction(card, -5_000, "Оплата перевод ERIP")
+        out.mcc = 4900
+        #expect(TransferMatcher.pairs(in: [out, transaction(deposit, 5_000, "Перевод", hours: 2)]).isEmpty)
+        var p2p = transaction(card, -5_000, "Перевод P2P")
+        p2p.mcc = 4829
+        #expect(TransferMatcher.pairs(in: [p2p, transaction(deposit, 5_000, "Перевод", hours: 2)]).count == 1)
+    }
+
+    @Test("Покупка и возврат с общим номером документа в одном счёте — не перевод")
+    func refundWithSharedReference() {
+        let pairs = TransferMatcher.pairs(in: [
+            transaction(card, -2_500, "Retail BLR MINSK SHOP RRN 123456789012"),
+            transaction(card, 2_500, "Credit BLR MINSK SHOP RRN 123456789012", hours: 2),
+        ])
+        #expect(pairs.isEmpty)
+    }
 }
