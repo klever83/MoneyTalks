@@ -62,7 +62,7 @@ struct ImportPlannerTests {
     }
 
     @Test("Дубли, снятие наличных и перевод на другой счёт")
-    func plansImport() {
+    func plansImport() throws {
         let account = ImportPlanner.proposedAccount(for: statement, bank: bank)
         let usdCard = Account.ID()
         let income = FinanceTransaction(
@@ -81,7 +81,32 @@ struct ImportPlannerTests {
         #expect(plan.updatedTransactions.first?.transferPairID == plan.newTransactions[2].transferPairID)
         #expect(Set(plan.links.map(\.kind)) == [.cash, .transfer])
         #expect(plan.accountsToSave.count == 2)
-        #expect(plan.transactionsToSave.count == 5)
+        // Сохранённая сторона перевода обновляется точечно, а не перезаписывается целиком.
+        #expect(plan.transactionsToSave.count == 4)
+        let pairID = try #require(plan.newTransactions[2].transferPairID)
+        #expect(plan.transferLinks == [TransferLink(transactionID: income.id, pairID: pairID)])
+    }
+
+    @Test("Одинаковый номер операции у двух строк даёт разные отпечатки")
+    func repeatedReference() {
+        let rows = [
+            ParsedRow(bookedAt: start, amount: Money(minorUnits: -1_000, currency: .byn), description: "Покупка", bankReference: "R1"),
+            ParsedRow(bookedAt: start, amount: Money(minorUnits: -20, currency: .byn), description: "Комиссия", bankReference: "R1"),
+        ]
+        #expect(ImportDeduplicator.fingerprints(for: rows, accountID: Account.ID()) == ["ref:R1", "ref:R1#1"])
+    }
+
+    @Test("Удалённый кошелёк из базы не воскрешается при импорте")
+    func deletedWalletIDs() {
+        let account = ImportPlanner.proposedAccount(for: statement, bank: bank)
+        let stable = CashWithdrawals.wallet(for: .byn, among: [], name: "Наличные").id
+        let plan = ImportPlanner.plan(
+            statement: statement, bank: bank, account: account, isNewAccount: true,
+            existingFingerprints: [], existingAccounts: [], deletedAccountIDs: [stable],
+            recentTransactions: [], walletName: "Наличные", excludedLinks: []
+        )
+        #expect(plan.newWallets.count == 1)
+        #expect(plan.newWallets.first?.id != stable)
     }
 
     @Test("Снятые в превью связи не применяются, а идентификаторы плана стабильны")

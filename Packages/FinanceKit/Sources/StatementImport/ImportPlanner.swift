@@ -27,14 +27,21 @@ public struct ImportPlan: Sendable {
     public var walletTransactions: [FinanceTransaction]
     /// Кошельки «Наличные», которых ещё нет в приложении.
     public var newWallets: [Account]
-    /// Уже сохранённые операции других выписок, ставшие стороной перевода.
+    /// Уже сохранённые операции других выписок, ставшие стороной перевода (уже с отметкой).
     public var updatedTransactions: [FinanceTransaction]
+    /// Те же операции как точечные обновления для базы.
+    public var transferLinks: [TransferLink] {
+        updatedTransactions.compactMap { transaction in
+            transaction.transferPairID.map { TransferLink(transactionID: transaction.id, pairID: $0) }
+        }
+    }
     /// Строки, которые уже импортированы раньше.
     public var duplicates: Int
     public var links: [ImportLink]
 
     public var accountsToSave: [Account] { (isNewAccount ? [account] : []) + newWallets }
-    public var transactionsToSave: [FinanceTransaction] { newTransactions + walletTransactions + updatedTransactions }
+    /// Новые операции; уже сохранённые обновляются точечно через `transferLinks`.
+    public var transactionsToSave: [FinanceTransaction] { newTransactions + walletTransactions }
 }
 
 /// Готовит импорт выписки: счёт, дубли, переводы и снятие наличных. Ничего не пишет в базу.
@@ -74,6 +81,7 @@ public enum ImportPlanner {
     /// - Parameters:
     ///   - existingFingerprints: отпечатки уже сохранённых операций выбранного счёта.
     ///   - existingAccounts: все счета приложения (для кошельков наличных).
+    ///   - deletedAccountIDs: удалённые счета: их идентификаторы новым кошелькам не достаются.
     ///   - recentTransactions: сохранённые операции всех счетов за период выписки с запасом
     ///     в окно поиска переводов: с ними ищутся пары для новых строк.
     ///   - walletName: имя для нового кошелька наличных (локализованное).
@@ -85,6 +93,7 @@ public enum ImportPlanner {
         isNewAccount: Bool,
         existingFingerprints: Set<String>,
         existingAccounts: [Account],
+        deletedAccountIDs: Set<Account.ID> = [],
         recentTransactions: [FinanceTransaction],
         walletName: String,
         excludedLinks: Set<UUID> = [],
@@ -114,7 +123,9 @@ public enum ImportPlanner {
         var wallets: [Currency: Account] = [:]
         let cash = CashWithdrawals.pair(imported, wallet: { currency in
             if let wallet = wallets[currency] { return wallet.id }
-            let wallet = CashWithdrawals.wallet(for: currency, among: existingAccounts, name: walletName, now: now)
+            let wallet = CashWithdrawals.wallet(
+                for: currency, among: existingAccounts, deletedIDs: deletedAccountIDs, name: walletName, now: now
+            )
             wallets[currency] = wallet
             return wallet.id
         }, now: now)

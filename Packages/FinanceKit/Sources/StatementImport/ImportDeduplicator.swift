@@ -9,7 +9,8 @@ public enum ImportDeduplicator {
     /// (два кофе по 5 BYN в одной кофейне за день — это две разные операции).
     public static func fingerprint(for row: ParsedRow, accountID: Account.ID, occurrence: Int) -> String {
         if let reference = row.bankReference, !reference.isEmpty {
-            return "ref:\(reference)"
+            // Банк может дать один номер нескольким строкам (операция и её комиссия): различаем по повтору.
+            return occurrence == 0 ? "ref:\(reference)" : "ref:\(reference)#\(occurrence)"
         }
         let key = [
             accountID.rawValue.uuidString,

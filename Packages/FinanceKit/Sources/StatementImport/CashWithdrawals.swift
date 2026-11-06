@@ -33,13 +33,20 @@ public enum CashWithdrawals {
     /// Кошелёк для наличных в валюте: свой счёт «Наличные» пользователя, если он уже есть,
     /// иначе новый с постоянным идентификатором (тот же на любом устройстве). Если кошелёк с этим
     /// идентификатором пользователь удалил, новый получает случайный: удалённый не воскрешается.
-    public static func wallet(for currency: Currency, among accounts: [Account], name: String, now: Date = .now) -> Account {
+    /// - Parameter deletedIDs: удалённые счета, если их нет в `accounts`.
+    public static func wallet(
+        for currency: Currency,
+        among accounts: [Account],
+        deletedIDs: Set<Account.ID> = [],
+        name: String,
+        now: Date = .now
+    ) -> Account {
         if let existing = accounts.first(where: { $0.kind == .cash && $0.currency == currency && $0.deletedAt == nil }) {
             return existing
         }
         let stableID = Account.ID(UUID(v5: "cash-wallet|\(currency.code)", namespace: namespace))
         return Account(
-            id: accounts.contains { $0.id == stableID } ? Account.ID() : stableID,
+            id: accounts.contains { $0.id == stableID } || deletedIDs.contains(stableID) ? Account.ID() : stableID,
             name: name,
             kind: .cash,
             currency: currency,

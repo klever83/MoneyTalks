@@ -34,6 +34,9 @@ final class ImportModel {
     private(set) var proposedAccount: Account?
     private(set) var fileName = ""
     private(set) var target: Target = .new
+    /// Идёт пересчёт превью: подтверждать нельзя, план ещё старый.
+    private(set) var isPlanning = false
+    private var generation = 0
     private var document: StatementDocument?
     private var statement: ParsedStatement?
     private var bank: BankInfo?
@@ -119,13 +122,17 @@ final class ImportModel {
     }
 
     func confirm() async {
-        guard let plan else { return }
+        guard let plan, !isPlanning else { return }
         phase = .working
         do {
-            try await importRepository.commitImport(accounts: plan.accountsToSave, transactions: plan.transactionsToSave)
+            try await importRepository.commitImport(
+                accounts: plan.accountsToSave,
+                transactions: plan.transactionsToSave,
+                links: plan.transferLinks
+            )
             phase = .done(imported: plan.newTransactions.count)
         } catch {
-            phase = .failed(error.localizedDescription)
+            phase = .failed(Self.message(for: error))
         }
     }
 
@@ -140,6 +147,8 @@ final class ImportModel {
         excluded = []
         target = .new
         batchID = UUID()
+        generation += 1
+        isPlanning = false
     }
 
     // MARK: - Внутреннее
@@ -166,8 +175,14 @@ final class ImportModel {
         }
     }
 
+    /// Пересчёт превью. Если за время запросов к базе пользователь снова что-то переключил,
+    /// результат устарел и отбрасывается: применяется только последний пересчёт.
     private func replan() async {
         guard let statement, let bank, let proposedAccount else { return }
+        generation += 1
+        let current = generation
+        isPlanning = true
+        defer { if current == generation { isPlanning = false } }
         let account: Account
         let isNew: Bool
         switch target {
@@ -183,11 +198,13 @@ final class ImportModel {
             let fingerprints = isNew ? [] : try await transactionRepository.fingerprints(accountID: account.id)
             let dates = statement.rows.map(\.bookedAt)
             let window = TransferMatcher.defaultWindow
+            let deletedAccounts = try await accountRepository.deletedAccountIDs()
             var recent: [FinanceTransaction] = []
             if let first = dates.min(), let last = dates.max() {
                 let interval = DateInterval(start: first.addingTimeInterval(-window), end: last.addingTimeInterval(window + 1))
                 recent = try await transactionRepository.transactions(TransactionQuery(interval: interval))
             }
+            guard current == generation else { return }
             plan = ImportPlanner.plan(
                 statement: statement,
                 bank: bank,
@@ -195,6 +212,7 @@ final class ImportModel {
                 isNewAccount: isNew,
                 existingFingerprints: fingerprints,
                 existingAccounts: accounts,
+                deletedAccountIDs: deletedAccounts,
                 recentTransactions: recent,
                 walletName: String(localized: "Наличные"),
                 excludedLinks: excluded,
@@ -202,6 +220,7 @@ final class ImportModel {
             )
             phase = .preview
         } catch {
+            guard current == generation else { return }
             phase = .failed(error.localizedDescription)
         }
     }
@@ -238,6 +257,8 @@ final class ImportModel {
             String(localized: "Поддерживаются выписки в PDF и CSV.")
         case ImportFileError.unreadable:
             String(localized: "Не удалось прочитать файл.")
+        case ImportCommitError.transactionChanged:
+            String(localized: "Операции изменились, пока шёл импорт. Выберите файл ещё раз.")
         default:
             error.localizedDescription
         }

@@ -98,7 +98,7 @@ public struct ImportScreen: View {
                 Button("Импортировать") {
                     Task { await model.confirm() }
                 }
-                .disabled(model.plan?.newTransactions.isEmpty ?? true)
+                .disabled(model.isPlanning || (model.plan?.newTransactions.isEmpty ?? true))
             }
         case .choosingBank:
             ToolbarItem(placement: .cancellationAction) {

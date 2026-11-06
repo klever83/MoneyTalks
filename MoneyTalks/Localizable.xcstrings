@@ -1156,6 +1156,16 @@
           }
         }
       }
+    },
+    "Операции изменились, пока шёл импорт. Выберите файл ещё раз.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transactions changed while importing. Choose the file again."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
