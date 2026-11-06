@@ -7,13 +7,17 @@ import Testing
 @Suite("Приорбанк")
 struct PriorbankParserTests {
     /// Разметка как у «Выписки по контракту» из интернет-банка, данные выдуманные.
-    static func statement(currency: String = "BYN") -> PDFFixture {
+    static func statement(
+        currency: String = "BYN",
+        opening: String = "1 000.00",
+        totals: String = "2 588.00 3 537.11 0.00 50.89"
+    ) -> PDFFixture {
         var pdf = PDFFixture()
         pdf.text("Выписка по контракту Период выписки 01.10.2026 - 31.10.2026", x: 56, y: 76)
         pdf.text("Номер контракта: …….0001 Валюта контракта \(currency)", x: 56, y: 88)
         pdf.text("Карта: ........4321 VISA GOLD", x: 56, y: 99)
         pdf.text("ФИО: Иван Тестов", x: 56, y: 111)
-        pdf.text("Валюта счета: \(currency) Начальный баланс: 1 000.00", x: 56, y: 157)
+        pdf.text("Валюта счета: \(currency) Начальный баланс: \(opening)", x: 56, y: 157)
 
         func header(_ y: CGFloat) {
             pdf.text("Дата транзакции", x: 64, y: y)
@@ -51,7 +55,7 @@ struct PriorbankParserTests {
         row(77, "20.10.2026 00:00:00", "Retail KAZ ALMATY YANDEX.GO", "-1 920.00", "KZT", "21.10.2026", "-13.61")
         row(89, "05.10.2026 00:00:00", "Retail BLR MINSK AZS N12", "-1 011.00", currency, "06.10.2026", "-1 011.00")
         pdf.text("Всего в данной валюте Зачислено Списано Комиссия/Money-back Конечный баланс", x: 56, y: 130)
-        pdf.text("2 588.00 3 537.11 0.00 50.89", x: 56, y: 142)
+        pdf.text(totals, x: 56, y: 142)
 
         pdf.text("Заблокированные суммы по ........4321", x: 56, y: 200)
         pdf.text("06.11.2026 13:14:38", x: 56, y: 220)
@@ -140,5 +144,64 @@ struct PriorbankParserTests {
         pdf.text("07.10.2026 Оплата товаров -5.00 BYN", x: 20, y: 40)
         let document = try PDFStatementReader.document(from: pdf.data(), fileName: "other.pdf")
         #expect(PriorbankParser().confidence(for: document) < 0.5)
+    }
+
+    /// Строка операции в том же месте, что и в `statement()`: для дополнительных случаев.
+    private static func extraRow(
+        _ pdf: inout PDFFixture, y: CGFloat, operation: String, amount: String, currency: String = "BYN",
+        commission: String = "0.00", turnover: String
+    ) {
+        pdf.text("01.10.2026 10:00:00", x: 56, y: y)
+        pdf.text(operation, x: 154, y: y)
+        pdf.text(amount, x: 487, y: y, .right)
+        pdf.text(currency, x: 515, y: y)
+        pdf.text("01.10.2026", x: 572, y: y)
+        pdf.text(commission, x: 653, y: y, .right)
+        pdf.text(turnover, x: 735, y: y, .right)
+    }
+
+    @Test("Ненулевая комиссия: предупреждение по операции")
+    func commission() throws {
+        var pdf = Self.statement()
+        Self.extraRow(&pdf, y: 101, operation: "Retail BLR MINSK ATM", amount: "-100.00", commission: "-1.50", turnover: "-101.50")
+        let statement = try parse(pdf)
+        #expect(statement.rows.count == 7)
+        #expect(statement.warnings.contains { $0.message.hasPrefix("Комиссия/Money-back -1.5") && $0.line != nil })
+    }
+
+    @Test("Вторая валюта счёта в контракте не смешивается с первой")
+    func secondAccountCurrency() throws {
+        var pdf = Self.statement()
+        pdf.text("Валюта счета: USD Начальный баланс: 10.00", x: 56, y: 300)
+        pdf.text("Операции по ........4321", x: 56, y: 320)
+        Self.extraRow(&pdf, y: 340, operation: "Retail USA NEW YORK SHOP", amount: "-5.00", currency: "USD", turnover: "-5.00")
+        pdf.text("Всего в данной валюте Зачислено Списано Комиссия/Money-back Конечный баланс", x: 56, y: 360)
+        pdf.text("0.00 5.00 0.00 5.00", x: 56, y: 372)
+
+        let statement = try parse(pdf)
+        #expect(statement.accountHint.currency == .byn)
+        #expect(statement.rows.count == 6)
+        #expect(statement.rows.allSatisfy { $0.amount.currency == .byn })
+        #expect(statement.closingBalance == Money(minorUnits: 5_089, currency: .byn))
+        let messages = statement.warnings.map(\.message)
+        #expect(messages.contains { $0.contains("пропущено 1 в USD") })
+        #expect(!messages.contains { $0.hasPrefix("Сумма операций не сходится") })
+    }
+
+    @Test("Перенесённая строка описания приклеивается к операции")
+    func wrappedDescription() throws {
+        var pdf = Self.statement()
+        Self.extraRow(&pdf, y: 101, operation: "Retail BLR MINSK", amount: "0.00", turnover: "0.00")
+        pdf.text("SHOP \"VERY LONG NAME\"", x: 154, y: 110)
+        let rows = try parse(pdf).rows
+        #expect(rows.last?.description == "Retail BLR MINSK SHOP \"VERY LONG NAME\"")
+        #expect(rows.dropLast().map(\.description).allSatisfy { !$0.contains("VERY LONG") })
+    }
+
+    @Test("Итоги от 1000 без разделителя разрядов")
+    func totalsWithoutSeparators() throws {
+        let statement = try parse(Self.statement(opening: "2 000.00", totals: "2588.00 3537.11 0.00 1050.89"))
+        #expect(statement.closingBalance == Money(minorUnits: 105_089, currency: .byn))
+        #expect(!statement.warnings.contains { $0.message.hasPrefix("Сумма операций не сходится") })
     }
 }

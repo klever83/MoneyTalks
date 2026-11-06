@@ -33,7 +33,13 @@ public struct PriorbankParser: StatementParser {
         guard case let .layout(layout) = document.content else { throw .unsupportedFormat }
         let lines = layout.lines
 
+        // В контракте может быть несколько счетов в разных валютах, у каждого свой блок
+        // «Валюта счета: … Начальный баланс: …» и свои итоги. Импортируем блок первой валюты.
         var accountCurrency: Currency?
+        var contractCurrency: Currency?
+        var otherCurrencies: [String] = []
+        var otherCurrencyRows = 0
+        var inOtherCurrency = false
         var cardNumber: String?
         var period: DateInterval?
         var opening: Decimal?
@@ -42,11 +48,20 @@ public struct PriorbankParser: StatementParser {
         var warnings: [ParseWarning] = []
         var blockedCount = 0
         var inBlockedSection = false
+        // Последняя строка операции: к ней приклеиваются перенесённые строки описания.
+        var lastRow: (number: Int, frame: CGRect, description: ClosedRange<CGFloat>)?
 
         for (index, line) in lines.enumerated() {
             let text = line.text
-            if accountCurrency == nil, let match = text.firstMatch(of: /Валюта (?:счета:|контракта) ([A-Z]{3})/) {
-                accountCurrency = Currency(code: String(match.1))
+            if contractCurrency == nil, let match = text.firstMatch(of: /Валюта контракта ([A-Z]{3})/) {
+                contractCurrency = Currency(code: String(match.1))
+            }
+            if let match = text.firstMatch(of: /Валюта счета: ([A-Z]{3})/) {
+                let code = String(match.1)
+                if accountCurrency == nil { accountCurrency = Currency(code: code) }
+                inOtherCurrency = code != accountCurrency?.code
+                if inOtherCurrency, !otherCurrencies.contains(code) { otherCurrencies.append(code) }
+                inBlockedSection = false
             }
             if cardNumber == nil, let match = text.firstMatch(of: /Карта: \.+(\d{4})/) {
                 cardNumber = String(match.1)
@@ -55,36 +70,74 @@ public struct PriorbankParser: StatementParser {
                let start = Self.date(String(match.1)), let end = Self.date(String(match.2)) {
                 period = DateInterval(start: start, end: end.addingTimeInterval(86_399))
             }
-            if opening == nil, let match = text.firstMatch(of: /Начальный баланс: (-?[\d ]+\.\d{2})/) {
+            if opening == nil, !inOtherCurrency, let match = text.firstMatch(of: /Начальный баланс: (-?[\d ]+\.\d{2})/) {
                 opening = AmountParser.decimal(from: String(match.1))
             }
-            if text.hasPrefix("Всего в данной валюте"), index + 1 < lines.count {
+            if text.hasPrefix("Всего в данной валюте"), !inOtherCurrency, closing == nil, index + 1 < lines.count {
                 // Строка под заголовком итогов: зачислено, списано, комиссия, конечный баланс.
                 closing = Self.amounts(in: lines[index + 1].text).last
             }
             if text.hasPrefix("Заблокированные суммы") {
                 inBlockedSection = true
+                lastRow = nil
                 continue
             }
+            if text.hasPrefix("Операции по") {
+                inBlockedSection = false
+            }
 
-            let segments = line.segments(minGap: cellGap)
-            guard let first = segments.first, let bookedAt = Self.dateTime(first) else { continue }
+            let segments = line.segmentWords(minGap: cellGap)
+            let texts = segments.map { $0.map(\.text).joined(separator: " ") }
+            guard let first = texts.first, let bookedAt = Self.dateTime(first) else {
+                if let last = lastRow, drafts.last?.line == last.number,
+                   Self.isContinuation(line.frame, below: last.frame, description: last.description) {
+                    drafts[drafts.count - 1].row.description += " " + text
+                    lastRow?.frame = line.frame
+                } else {
+                    lastRow = nil
+                }
+                continue
+            }
+            lastRow = nil
+            if inOtherCurrency {
+                otherCurrencyRows += 1
+                continue
+            }
             if inBlockedSection {
                 blockedCount += 1
                 continue
             }
-            if segments.count > 1, segments[1].hasPrefix("Гашение основного долга") {
+            if texts.count > 1, texts[1].hasPrefix("Гашение основного долга") {
                 warnings.append(ParseWarning(line: index + 1, message: "Гашение основного долга не влияет на баланс счёта, пропущено"))
                 continue
             }
-            guard segments.count >= 6, let draft = Self.draft(from: segments, bookedAt: bookedAt) else {
+            guard texts.count >= 6, let draft = Self.draft(from: texts, bookedAt: bookedAt) else {
                 warnings.append(ParseWarning(line: index + 1, message: "Не удалось разобрать операцию: \(text)"))
                 continue
             }
+            if let commission = draft.commission, commission != 0 {
+                warnings.append(ParseWarning(
+                    line: index + 1,
+                    message: "Комиссия/Money-back \(commission) не выделена в отдельную операцию: проверьте сумму «\(draft.description)»"
+                ))
+            }
             drafts.append((index + 1, draft))
+            // Описание — ячейки между датой и пятью последними колонками; перенос должен лечь в те же границы.
+            let descriptionWords = segments.dropFirst().dropLast(5).flatMap { $0 }
+            if let minX = descriptionWords.map(\.frame.minX).min(),
+               let amountMinX = segments.dropLast(4).last?.map(\.frame.minX).min() {
+                lastRow = (index + 1, line.frame, minX...amountMinX)
+            }
         }
 
-        guard let accountCurrency else { throw .missingColumn("Валюта счета") }
+        guard let accountCurrency = accountCurrency ?? contractCurrency else { throw .missingColumn("Валюта счета") }
+        if !otherCurrencies.isEmpty {
+            warnings.append(ParseWarning(
+                line: nil,
+                message: "В контракте несколько валют счёта: импортированы операции в \(accountCurrency.code), "
+                    + "пропущено \(otherCurrencyRows) в \(otherCurrencies.joined(separator: ", ")). Импортируйте их отдельной выпиской"
+            ))
+        }
 
         var rows: [ParsedRow] = []
         for (line, draft) in drafts {
@@ -136,6 +189,7 @@ public struct PriorbankParser: StatementParser {
         var amount: Decimal
         var currency: Currency
         var accountAmount: Decimal
+        var commission: Decimal?
 
         func row(accountCurrency: Currency) -> ParsedRow? {
             let signed = Money(accountAmount, currency: accountCurrency)
@@ -164,14 +218,23 @@ public struct PriorbankParser: StatementParser {
             description: description,
             amount: amount,
             currency: Currency(code: values[1]),
-            accountAmount: accountAmount
+            accountAmount: accountAmount,
+            commission: AmountParser.decimal(from: values[3])
         )
+    }
+
+    /// Перенесённая строка описания: сразу под строкой операции, в границах колонки «Операция».
+    private static func isContinuation(_ frame: CGRect, below previous: CGRect, description: ClosedRange<CGFloat>) -> Bool {
+        let gap = frame.minY - previous.maxY
+        return gap >= -1 && gap < previous.height
+            && frame.minX >= description.lowerBound - 2
+            && frame.maxX <= description.upperBound
     }
 
     // MARK: - Числа и даты
 
     private static func amounts(in text: String) -> [Decimal] {
-        text.matches(of: /-?\d{1,3}(?: \d{3})*\.\d{2}/).compactMap { AmountParser.decimal(from: String($0.output)) }
+        text.matches(of: /-?\d+(?: \d{3})*\.\d{2}/).compactMap { AmountParser.decimal(from: String($0.output)) }
     }
 
     private static var calendar: Calendar {
