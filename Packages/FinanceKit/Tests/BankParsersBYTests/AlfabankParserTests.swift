@@ -140,4 +140,20 @@ struct AlfabankParserTests {
         let prior = try PDFStatementReader.document(from: PriorbankParserTests.statement().data(), fileName: "b.pdf")
         #expect(AlfabankParser().confidence(for: prior) < 0.3)
     }
+
+    @Test("Большая сумма целиком в своей колонке, хотя начинается левее заголовка")
+    func largeAmount() throws {
+        var pdf = Self.statement(closing: "-1234482.16")
+        pdf.text("02.10.2026", x: 45, y: 119)
+        pdf.text("Перевод на депозит", x: 90, y: 119)
+        pdf.text("-1 234 567.89 BYN", x: 461, y: 119, .right)
+        pdf.text("-1 500 000.00 RUB", x: 542, y: 119, .right)
+        let statement = try Self.parse(pdf)
+        let row = try #require(statement.rows.last)
+        #expect(statement.rows.count == 6)
+        #expect(row.description == "Перевод на депозит")
+        #expect(row.amount == Money(minorUnits: -123_456_789, currency: .byn))
+        #expect(row.originalAmount == Money(minorUnits: -150_000_000, currency: Currency(code: "RUB")))
+        #expect(statement.warnings.isEmpty, "\(statement.warnings)")
+    }
 }

@@ -57,13 +57,12 @@ public struct AlfabankParser: StatementParser {
             }
         }
         guard let accountCurrency else { throw .missingColumn("Валюта счета") }
-        guard let boundaries = Self.columnBoundaries(lines) else { throw .missingColumn("Шапка таблицы") }
-
         let tableLines = TableExtractor.tableLines(
             in: layout,
             isHeader: Self.isHeaderTail,
             isFooter: { $0.text.wholeMatch(of: /\d+ \/ \d+/) != nil }
-        )
+        ).map(Self.joiningAmounts)
+        guard let boundaries = Self.columnBoundaries(lines, table: tableLines) else { throw .missingColumn("Шапка таблицы") }
         let table = TableExtractor.rows(tableLines, boundaries: boundaries) { cells in
             cells[0].wholeMatch(of: /\d{2}\.\d{2}\.\d{4}/) != nil
         }
@@ -127,7 +126,7 @@ public struct AlfabankParser: StatementParser {
     /// Три границы: дата | примечание | сумма в валюте счёта | сумма в валюте операции.
     /// Суммы стоят под своими заголовками, а примечание кончается левее заголовка суммы в валюте счёта.
     /// Слово относится к колонке по своей середине, поэтому граница — чуть левее начала заголовка.
-    private static func columnBoundaries(_ lines: [TextLine]) -> [CGFloat]? {
+    private static func columnBoundaries(_ lines: [TextLine], table: [TextLine]) -> [CGFloat]? {
         guard let headerIndex = lines.firstIndex(where: { line in line.words.contains { $0.text == "Примечание" } }),
               let noteHeader = lines[headerIndex].words.first(where: { $0.text == "Примечание" }),
               let dateHeader = lines[headerIndex].words.first(where: { $0.text == "Дата" })
@@ -145,12 +144,39 @@ public struct AlfabankParser: StatementParser {
         else { return nil }
 
         // Даты в колонке «Дата» выровнены по центру под заголовком; примечание начинается сразу за ними.
-        let dateEnd = lines
+        let dateEnd = table
             .flatMap(\.words)
             .filter { $0.frame.minX < dateHeader.frame.maxX && $0.text.wholeMatch(of: /\d{2}\.\d{2}\.\d{4}/) != nil }
             .map(\.frame.maxX)
             .max() ?? dateHeader.frame.maxX + 12
         return [dateEnd + 2, accountStart - 3, operationStart - 3]
+    }
+
+    /// Суммы прижаты вправо, и у большой суммы первая группа разрядов может встать левее начала
+    /// заголовка и по середине слова уйти в примечание: `-123 456.78 BYN`. Поэтому группы разрядов
+    /// перед кодом валюты склеиваются в одно слово, и сумма попадает в колонку целиком.
+    private static func joiningAmounts(_ line: TextLine) -> TextLine {
+        var words = line.words.sorted { $0.frame.minX < $1.frame.minX }
+        var index = 1
+        while index < words.count {
+            defer { index += 1 }
+            guard words[index].text.wholeMatch(of: /[A-Z]{3}/) != nil,
+                  words[index - 1].text.wholeMatch(of: /-?\d+(?:\.\d+)?/) != nil
+            else { continue }
+            var start = index - 1
+            while start > 0,
+                  words[start].text.wholeMatch(of: /\d{3}(?:\.\d+)?/) != nil,
+                  words[start - 1].text.wholeMatch(of: /-?\d{1,3}/) != nil,
+                  words[start].frame.minX - words[start - 1].frame.maxX < words[start].frame.height * 0.6 {
+                start -= 1
+            }
+            guard start < index - 1 else { continue }
+            let group = words[start..<index]
+            let frame = group.dropFirst().reduce(group[start].frame) { $0.union($1.frame) }
+            words.replaceSubrange(start..<index, with: [TextWord(text: group.map(\.text).joined(separator: " "), frame: frame)])
+            index = start + 1
+        }
+        return TextLine(words: words)
     }
 
     /// `-21.3 BYN`, `1 250.00 USD`
