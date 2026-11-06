@@ -67,7 +67,7 @@ public struct PriorbankParser: StatementParser {
                 cardNumber = String(match.1)
             }
             if period == nil, let match = text.firstMatch(of: /Период выписки (\d{2}\.\d{2}\.\d{4}) - (\d{2}\.\d{2}\.\d{4})/),
-               let start = Self.date(String(match.1)), let end = Self.date(String(match.2)) {
+               let start = BYDate.date(String(match.1)), let end = BYDate.date(String(match.2)) {
                 period = DateInterval(start: start, end: end.addingTimeInterval(86_399))
             }
             if opening == nil, !inOtherCurrency, let match = text.firstMatch(of: /Начальный баланс: (-?[\d ]+\.\d{2})/) {
@@ -88,7 +88,7 @@ public struct PriorbankParser: StatementParser {
 
             let segments = line.segmentWords(minGap: cellGap)
             let texts = segments.map { $0.map(\.text).joined(separator: " ") }
-            guard let first = texts.first, let bookedAt = Self.dateTime(first) else {
+            guard let first = texts.first, let bookedAt = BYDate.dateTime(first) else {
                 if let last = lastRow, drafts.last?.line == last.number,
                    Self.isContinuation(line.frame, below: last.frame, description: last.description) {
                     drafts[drafts.count - 1].row.description += " " + text
@@ -208,7 +208,7 @@ public struct PriorbankParser: StatementParser {
         let tail = segments.suffix(5)
         let values = Array(tail)
         guard values[1].wholeMatch(of: /[A-Z]{3}/) != nil,
-              date(values[2]) != nil,
+              BYDate.date(values[2]) != nil,
               let amount = AmountParser.decimal(from: values[0]),
               let accountAmount = AmountParser.decimal(from: values[4])
         else { return nil }
@@ -235,24 +235,5 @@ public struct PriorbankParser: StatementParser {
 
     private static func amounts(in text: String) -> [Decimal] {
         text.matches(of: /-?\d+(?: \d{3})*\.\d{2}/).compactMap { AmountParser.decimal(from: String($0.output)) }
-    }
-
-    private static var calendar: Calendar {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "Europe/Minsk") ?? .current
-        return calendar
-    }
-
-    static func date(_ text: String) -> Date? {
-        guard let match = text.wholeMatch(of: /(\d{2})\.(\d{2})\.(\d{4})/) else { return nil }
-        return calendar.date(from: DateComponents(year: Int(match.3), month: Int(match.2), day: Int(match.1)))
-    }
-
-    static func dateTime(_ text: String) -> Date? {
-        guard let match = text.wholeMatch(of: /(\d{2})\.(\d{2})\.(\d{4}) (\d{2}):(\d{2}):(\d{2})/) else { return nil }
-        return calendar.date(from: DateComponents(
-            year: Int(match.3), month: Int(match.2), day: Int(match.1),
-            hour: Int(match.4), minute: Int(match.5), second: Int(match.6)
-        ))
     }
 }
