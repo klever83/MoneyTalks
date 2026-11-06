@@ -11,6 +11,10 @@ import Foundation
 /// - внутри одного счёта (например, контракт и карта Приорбанка): равные суммы в тот же день
 ///   и общий номер документа в описании. Без номера это обычно покупка и её возврат, не перевод.
 ///
+/// Совпадение суммы само по себе ничего не доказывает (заправка на 50 BYN и перевод от друга
+/// на 50 BYN), поэтому обе стороны должны выглядеть как перевод: в описании есть «перевод»,
+/// P2P, пополнение и т. п., а MCC, если банк его дал, не MCC покупки.
+///
 /// Неоднозначные случаи не склеиваются: если у операции две равноудалённые пары на разных счетах,
 /// лучше оставить обе как есть, чем угадать неверно. Операции с категорией, выбранной
 /// пользователем, удалённые и уже связанные не трогаются.
@@ -48,6 +52,7 @@ public enum TransferMatcher {
                 && !transaction.categoryLocked
                 && transaction.kind != .transfer
                 && !transaction.amount.isZero
+                && looksLikeTransfer(transaction)
         }
         let outgoing = candidates.filter(\.amount.isNegative)
         let incoming = candidates.filter { !$0.amount.isNegative }
@@ -128,6 +133,23 @@ public enum TransferMatcher {
         if let original = out.originalAmount, original.absolute == into.amount { return true }
         if let original = into.originalAmount, original.absolute == out.amount.absolute { return true }
         return false
+    }
+
+    /// MCC, с которыми операция может быть переводом: денежные переводы, финансовые учреждения,
+    /// пополнение и выдача средств. Остальные MCC — покупки.
+    static let transferMCC: Set<Int> = [4829, 6010, 6011, 6012, 6051, 6538, 6540]
+
+    /// Слова, по которым банки помечают переводы между счетами и картами.
+    static let transferWords = [
+        "перевод", "p2p", "пополнение", "поступление на контракт", "payment from", "обмен", "конверс",
+        "transfer", "popolnenie",
+    ]
+
+    static func looksLikeTransfer(_ transaction: FinanceTransaction) -> Bool {
+        if let mcc = transaction.mcc, !transferMCC.contains(mcc) { return false }
+        if CashWithdrawals.isFee(transaction.merchantRaw) { return false }
+        let text = transaction.merchantRaw.lowercased()
+        return transferWords.contains { text.contains($0) }
     }
 
     /// Номера документов в описании: от шести цифр, можно через дефис (`000000-00000-000001`).
