@@ -19,6 +19,8 @@ public protocol AccountRepository: Sendable {
     func save(_ account: Account) async throws
     /// Мягкое удаление: запись помечается `deletedAt` (нужно для будущей синхронизации).
     func delete(_ id: Account.ID) async throws
+    /// Идентификаторы удалённых счетов: новый счёт не должен получить такой же и «воскресить» удалённый.
+    func deletedAccountIDs() async throws -> Set<Account.ID>
 }
 
 public protocol TransactionRepository: Sendable {
@@ -56,12 +58,13 @@ public enum ImportCommitError: Error, Equatable, Sendable {
 public protocol ImportRepository: Sendable {
     /// Сохраняет результат импорта одной транзакцией базы: новые счета и операции, а у уже
     /// сохранённых операций точечно отмечает перевод (только тип, пару и категорию, остальное
-    /// не трогается). Если такая операция за это время удалена или уже связана, бросает
+    /// не трогается). Если такая операция за это время удалена, уже связана или пользователь
+    /// закрепил её категорию, бросает
     /// `ImportCommitError.transactionChanged`, и не сохраняется ничего.
     func commitImport(accounts: [Account], transactions: [FinanceTransaction], links: [TransferLink]) async throws
 }
 
 public extension AccountRepository {
-    /// Идентификаторы удалённых счетов: новый счёт не должен получить такой же и «воскресить» удалённый.
+    /// Реализация по умолчанию для хранилищ без мягкого удаления (превью, тестовые заглушки).
     func deletedAccountIDs() async throws -> Set<Account.ID> { [] }
 }

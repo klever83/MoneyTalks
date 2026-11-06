@@ -151,7 +151,9 @@ struct RepositoryTests {
         try await accounts.delete(wallet.id)
 
         #expect(try await transactions.fingerprints(accountID: account.id) == ["h:deleted"])
-        #expect(try await accounts.deletedAccountIDs() == [wallet.id])
+        // Через протокол, как в ImportModel: должна вызываться реализация GRDB, а не заглушка по умолчанию.
+        let repository: any AccountRepository = accounts
+        #expect(try await repository.deletedAccountIDs() == [wallet.id])
     }
 
     @Test("Сохранённая сторона перевода обновляется точечно, изменённая откатывает импорт")
@@ -184,6 +186,23 @@ struct RepositoryTests {
             )
         }
         #expect(try await transactions.transactions(TransactionQuery()).first?.transferPairID == pairID)
+
+        // Категорию, закреплённую пользователем во время превью, импорт тоже не перезаписывает.
+        var locked = FinanceTransaction(
+            accountID: account.id, bookedAt: .now, amount: Money(minorUnits: -700, currency: .byn),
+            merchantRaw: "Подарок", source: .imported, fingerprint: "h:locked"
+        )
+        locked.categoryID = groceries.id
+        locked.categoryLocked = true
+        try await transactions.save([locked])
+        await #expect(throws: ImportCommitError.transactionChanged) {
+            try await imports.commitImport(
+                accounts: [], transactions: [], links: [TransferLink(transactionID: locked.id, pairID: UUID())]
+            )
+        }
+        let stillLocked = try #require(try await transactions.transactions(TransactionQuery()).first { $0.id == locked.id })
+        #expect(stillLocked.kind == .expense && stillLocked.categoryID == groceries.id)
+
         var names: [String] = []
         for try await list in accounts.observeAccounts() {
             names = list.map(\.name)

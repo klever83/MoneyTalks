@@ -185,7 +185,7 @@ public struct GRDBImportRepository: ImportRepository {
             for link in links {
                 let changed = try TransactionRecord
                     .filter(key: link.transactionID.rawValue)
-                    .filter(deletedAt == nil && Column("transferPairID") == nil)
+                    .filter(deletedAt == nil && Column("transferPairID") == nil && Column("categoryLocked") == false)
                     .updateAll(
                         db,
                         Column("kind").set(to: FinanceTransaction.Kind.transfer.rawValue),
