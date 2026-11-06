@@ -95,6 +95,12 @@ public struct PriorbankParser: StatementParser {
             rows.append(row)
         }
 
+        if layout.uncertainWords > 0 {
+            warnings.append(ParseWarning(
+                line: nil,
+                message: "Положение части текста в PDF определено неточно (\(layout.uncertainWords)): проверьте описания операций"
+            ))
+        }
         if blockedCount > 0 {
             warnings.append(ParseWarning(
                 line: nil,
