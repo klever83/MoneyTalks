@@ -188,13 +188,14 @@ struct AlwaysRuleTests {
         "Оплата услуг ЕРИП 1234567",
         "Перевод с карты на карту",
         "Поступление на счёт",
+        "Перевод на карту другого банка",
+        "P2P Пинск",
     ])
     func noRuleWithoutMerchant(raw: String) {
         let transaction = FinanceTransaction(
             accountID: Account.ID(), bookedAt: .now, amount: Money(minorUnits: -100, currency: .byn),
             merchantRaw: raw, source: .imported
         )
-        #expect(MerchantNormalizer.key(raw).isEmpty)
         #expect(AlwaysRule.make(for: transaction, categoryID: FinanceCategory.systemID(for: "gifts"), existing: []) == nil)
     }
 

@@ -11,6 +11,9 @@ public enum AlwaysRule {
         categoryID: FinanceCategory.ID,
         existing: [CategoryRule]
     ) -> CategoryRule? {
+        // Стоп-лист служебных слов не бывает полным («Перевод на карту другого банка» даёт ключ
+        // «другого банка»), поэтому на всём, что похоже на перевод, «всегда так» не предлагается.
+        guard !TransferWords.appear(in: transaction.merchantRaw) else { return nil }
         let key = MerchantNormalizer.key(transaction.merchantRaw)
         guard !key.isEmpty else { return nil }
         let condition = CategoryRule.Condition.merchantKey(key)
