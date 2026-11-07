@@ -120,7 +120,7 @@ struct BelinvestbankParserTests {
 
     /// Разметка как у выписки по электронному кошельку, данные выдуманные.
     /// Тип платежа в узкой колонке перенесён посреди слова, как у банка.
-    static func wallet(income: String = "50", expense: String = "13.91") -> PDFFixture {
+    static func wallet(income: String = "50", expense: String = "18.91") -> PDFFixture {
         var pdf = PDFFixture()
         pdf.pageSize = CGSize(width: 595, height: 842)
         pdf.fontSize = 6
@@ -157,14 +157,17 @@ struct BelinvestbankParserTests {
             expense: nil, balance: "52.70", details: ["Пополнение электронного кошелька с текущего счета", "BY00BLBB00000000000000000000, 50 р."])
         row(236, "09.09.2026", "16:24", id: "600000003", type: ["Оплата", "в ЕРИП"], income: nil,
             expense: "12.81", balance: "39.89", details: [])
-        pdf.text("Итого", x: 38, y: 254)
-        pdf.text(income, x: 159, y: 254)
-        pdf.text(expense, x: 190, y: 254)
-        pdf.text("BYN", x: 256, y: 254)
-        pdf.text("обороты за", x: 38, y: 261)
-        pdf.text("Остаток на", x: 38, y: 279)
-        pdf.text("39.89", x: 83, y: 279)
-        pdf.text("BYN", x: 126, y: 279)
+        row(254, "09.09.2026", "16:30", id: "600000004", type: ["Вывод", "средств"], income: nil,
+            expense: "5.0", balance: "34.89",
+            details: ["Перечисление средств с электронного кошелька на банковскую карту ОАО", "\"Белинвестбанк\" 000000******1234"])
+        pdf.text("Итого", x: 38, y: 272)
+        pdf.text(income, x: 159, y: 272)
+        pdf.text(expense, x: 190, y: 272)
+        pdf.text("BYN", x: 256, y: 272)
+        pdf.text("обороты за", x: 38, y: 279)
+        pdf.text("Остаток на", x: 38, y: 297)
+        pdf.text("34.89", x: 83, y: 297)
+        pdf.text("BYN", x: 126, y: 297)
         return pdf
     }
 
@@ -176,19 +179,49 @@ struct BelinvestbankParserTests {
     @Test("Оплати: приход и расход, описание из деталей, Id операции как ссылка")
     func walletRows() throws {
         let statement = try Self.parseWallet(Self.wallet())
-        #expect(statement.rows.map(\.amount.minorUnits) == [-110, 5_000, -1_281])
+        #expect(statement.rows.map(\.amount.minorUnits) == [-110, 5_000, -1_281, -500])
         #expect(statement.rows.map(\.description) == [
             "Оплата товаров/услуг TEST TRANSPORT",
             "Пополнение электронного кошелька с текущего счета BY00BLBB00000000000000000000, 50 р.",
             "Оплата в ЕРИП",
+            "Перевод: Перечисление средств с электронного кошелька на банковскую карту ОАО \"Белинвестбанк\" 000000******1234",
         ])
-        #expect(statement.rows.map(\.bankReference) == ["oplati:600000001", "oplati:600000002", "oplati:600000003"])
+        #expect(statement.rows.map(\.bankReference) == [
+            "oplati:600000001", "oplati:600000002", "oplati:600000003", "oplati:600000004",
+        ])
         #expect(statement.accountHint == AccountHint(currency: .byn))
         #expect(statement.openingBalance == Money(minorUnits: 380, currency: .byn))
-        #expect(statement.closingBalance == Money(minorUnits: 3_989, currency: .byn))
+        #expect(statement.closingBalance == Money(minorUnits: 3_489, currency: .byn))
         #expect(statement.warnings.isEmpty, "\(statement.warnings)")
         let components = Self.minsk.dateComponents([.month, .day, .hour, .minute], from: statement.rows[0].bookedAt)
         #expect(components == DateComponents(month: 8, day: 11, hour: 18, minute: 3))
+    }
+
+    @Test("Оплати: пополнение с карты и вывод на карту склеиваются с операциями карты в переводы")
+    func walletTransfers() throws {
+        let rows = try Self.parseWallet(Self.wallet()).rows
+        let wallet = Account.ID()
+        let card = Account.ID()
+        func transaction(_ row: ParsedRow, on account: Account.ID) -> FinanceTransaction {
+            FinanceTransaction(
+                accountID: account, bookedAt: row.bookedAt, amount: row.amount,
+                merchantRaw: row.description, mcc: row.mcc, source: .imported
+            )
+        }
+        // Вторые стороны на карте: как их назовёт выписка карты, не важно, лишь бы со словом перевода.
+        let topUp = transaction(rows[1], on: wallet)
+        let withdrawal = transaction(rows[3], on: wallet)
+        let cardDebit = FinanceTransaction(
+            accountID: card, bookedAt: topUp.bookedAt, amount: Money(minorUnits: -5_000, currency: .byn),
+            merchantRaw: "Перевод на электронный кошелек", source: .imported
+        )
+        let cardCredit = FinanceTransaction(
+            accountID: card, bookedAt: withdrawal.bookedAt, amount: Money(minorUnits: 500, currency: .byn),
+            merchantRaw: "Зачисление перевода с электронного кошелька", source: .imported
+        )
+        let pairs = TransferMatcher.pairs(in: [topUp, withdrawal, cardDebit, cardCredit])
+        #expect(Set(pairs.map(\.incoming)) == [topUp.id, cardCredit.id])
+        #expect(Set(pairs.map(\.outgoing)) == [cardDebit.id, withdrawal.id])
     }
 
     @Test("Оплати: если обороты не сходятся, парсер предупреждает")

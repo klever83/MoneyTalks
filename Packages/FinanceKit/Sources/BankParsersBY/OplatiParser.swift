@@ -44,10 +44,12 @@ public struct OplatiParser: StatementParser {
                let start = BYDate.date(String(match.1)), let end = BYDate.date(String(match.2)) {
                 period = DateInterval(start: start, end: end.addingTimeInterval(86_399))
             }
-            if opening == nil, let match = text.firstMatch(of: /^Остаток на начало периода: (-?\d+(?:\.\d+)?) [A-Z]{3}/) {
+            if opening == nil, let match = text.firstMatch(of: /^Остаток на начало периода: (-?\s?\d[\d ]*(?:\.\d+)?) [A-Z]{3}/) {
                 opening = AmountParser.decimal(from: String(match.1))
             }
-            if totals == nil, let match = text.firstMatch(of: /^Итого (\d+(?:\.\d+)?) (\d+(?:\.\d+)?) [A-Z]{3}/),
+            // Суммы итогов могут быть с пробелом между разрядами: `1 240.0 1 235.75 BYN`,
+            // поэтому каждая сумма — группы до трёх цифр, а между суммами пробел.
+            if totals == nil, let match = text.firstMatch(of: /^Итого (\d{1,3}(?: \d{3})*(?:\.\d+)?) (\d{1,3}(?: \d{3})*(?:\.\d+)?) [A-Z]{3}/),
                let income = AmountParser.decimal(from: String(match.1)),
                let expense = AmountParser.decimal(from: String(match.2)) {
                 totals = (income, expense)
@@ -84,9 +86,7 @@ public struct OplatiParser: StatementParser {
                 warnings.append(ParseWarning(line: nil, message: "Не удалось разобрать операцию №\(index + 1): \(cells.joined(separator: " | "))"))
                 continue
             }
-            // Тип платежа перенесён посреди слова («Пополне ние»), поэтому описание берётся из деталей,
-            // а тип только когда деталей нет (оплата в ЕРИП).
-            let description = cells[7].isEmpty ? cells[2] : cells[7]
+            let description = Self.description(type: cells[2], details: cells[7])
             rows.append(ParsedRow(
                 bookedAt: bookedAt,
                 amount: Money(value, currency: currency),
@@ -110,6 +110,8 @@ public struct OplatiParser: StatementParser {
                     message: "Сумма операций не сходится с оборотами выписки: приход \(totals.income) и расход \(totals.expense), получилось \(credited) и \(debited)"
                 ))
             }
+        } else {
+            warnings.append(ParseWarning(line: nil, message: "Обороты за период в выписке не найдены, сверка не выполнена"))
         }
 
         let closing = opening.flatMap { opening in totals.map { opening + $0.income - $0.expense } }
@@ -121,5 +123,20 @@ public struct OplatiParser: StatementParser {
             rows: rows,
             warnings: warnings
         )
+    }
+
+    /// Описание из «Деталей». Тип платежа в узкой колонке перенесён посреди слова («Пополне ние кошельк а»),
+    /// поэтому он сравнивается без пробелов. Вывод на карту в деталях называется «Перечисление средств»,
+    /// без слова-признака перевода, и без него перевод между кошельком и картой не нашёлся бы:
+    /// такой строке добавляется «Перевод:». Без деталей (оплата в ЕРИП) описание — сам тип.
+    static func description(type: String, details: String) -> String {
+        let compactType = type.filter { !$0.isWhitespace }.lowercased()
+        guard !details.isEmpty else {
+            return type.split(separator: " ").joined(separator: " ")
+        }
+        if compactType == "выводсредств" {
+            return "Перевод: \(details)"
+        }
+        return details
     }
 }

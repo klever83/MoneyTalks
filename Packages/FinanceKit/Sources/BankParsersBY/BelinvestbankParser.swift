@@ -51,10 +51,10 @@ public struct BelinvestbankParser: StatementParser {
                     period = DateInterval(start: start, end: end.addingTimeInterval(86_399))
                 }
             }
-            if income == nil, let match = text.firstMatch(of: /^Приход: (-?\d+(?:\.\d+)?) [A-Z]{3}/) {
+            if income == nil, let match = text.firstMatch(of: /^Приход: (-?\d[\d ]*(?:\.\d+)?) [A-Z]{3}/) {
                 income = AmountParser.decimal(from: String(match.1))
             }
-            if expense == nil, let match = text.firstMatch(of: /^Расход: (-?\d+(?:\.\d+)?) [A-Z]{3}/) {
+            if expense == nil, let match = text.firstMatch(of: /^Расход: (-?\d[\d ]*(?:\.\d+)?) [A-Z]{3}/) {
                 expense = AmountParser.decimal(from: String(match.1))
             }
         }
@@ -143,11 +143,15 @@ public struct BelinvestbankParser: StatementParser {
         }
         let credited = rows.map(\.amount.decimalValue).filter { $0 > 0 }.reduce(0, +)
         let debited = -rows.map(\.amount.decimalValue).filter { $0 < 0 }.reduce(0, +)
-        if let income, let expense, income != credited || expense != debited {
-            warnings.append(ParseWarning(
-                line: nil,
-                message: "Сумма операций не сходится с оборотами выписки: приход \(income) и расход \(expense), получилось \(credited) и \(debited)"
-            ))
+        if let income, let expense {
+            if income != credited || expense != debited {
+                warnings.append(ParseWarning(
+                    line: nil,
+                    message: "Сумма операций не сходится с оборотами выписки: приход \(income) и расход \(expense), получилось \(credited) и \(debited)"
+                ))
+            }
+        } else {
+            warnings.append(ParseWarning(line: nil, message: "Обороты за период в выписке не найдены, сверка не выполнена"))
         }
 
         let closing = chain.first?.balance
