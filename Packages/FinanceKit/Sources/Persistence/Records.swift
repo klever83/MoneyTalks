@@ -178,3 +178,42 @@ struct TransactionRecord: Codable, FetchableRecord, PersistableRecord, Sendable 
         )
     }
 }
+
+struct CategoryRuleRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
+    static let databaseTableName = "categoryRules"
+
+    var id: UUID
+    var conditions: String
+    var categoryID: UUID
+    var priority: Int
+    var origin: String
+    var createdAt: Date
+    var updatedAt: Date
+    var deletedAt: Date?
+
+    init(_ rule: CategoryRule, createdAt: Date, updatedAt: Date) throws {
+        id = rule.id.rawValue
+        conditions = String(decoding: try JSONEncoder().encode(rule.conditions), as: UTF8.self)
+        categoryID = rule.categoryID.rawValue
+        priority = rule.priority
+        origin = rule.origin.rawValue
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        deletedAt = nil
+    }
+
+    /// `nil`, если условия не читаются (например, записаны более новой версией приложения):
+    /// такое правило пропускается, а не роняет категоризацию.
+    var domain: CategoryRule? {
+        guard let decoded = try? JSONDecoder().decode([CategoryRule.Condition].self, from: Data(conditions.utf8)) else {
+            return nil
+        }
+        return CategoryRule(
+            id: CategoryRule.ID(id),
+            conditions: decoded,
+            categoryID: FinanceCategory.ID(categoryID),
+            priority: priority,
+            origin: CategoryRule.Origin(rawValue: origin) ?? .user
+        )
+    }
+}

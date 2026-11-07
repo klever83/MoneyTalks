@@ -39,6 +39,20 @@ public protocol CategoryRepository: Sendable {
     func save(_ category: FinanceCategory) async throws
 }
 
+/// Правила категоризации пользователя. Встроенные правила живут в коде (`BuiltInRules`) и сюда не пишутся.
+public protocol CategoryRuleRepository: Sendable {
+    func rules() async throws -> [CategoryRule]
+    func save(_ rule: CategoryRule) async throws
+    func delete(_ id: CategoryRule.ID) async throws
+}
+
+/// Проставляет категории операциям по правилам.
+public protocol TransactionCategorizer: Sendable {
+    /// Возвращает те же операции, у которых без категории появилась подсказанная.
+    /// Переводы, операции с закреплённой или уже выбранной категорией не меняются.
+    func categorize(_ transactions: [FinanceTransaction]) async throws -> [FinanceTransaction]
+}
+
 /// Уже сохранённая операция, которая при импорте стала стороной перевода.
 public struct TransferLink: Hashable, Sendable {
     public var transactionID: FinanceTransaction.ID

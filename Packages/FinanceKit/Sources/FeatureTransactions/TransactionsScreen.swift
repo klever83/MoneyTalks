@@ -13,15 +13,18 @@ final class TransactionsViewModel {
     private let transactionRepository: any TransactionRepository
     private let accountRepository: any AccountRepository
     private let categoryRepository: any CategoryRepository
+    private let categorizer: any TransactionCategorizer
 
     init(
         transactions: any TransactionRepository,
         accounts: any AccountRepository,
-        categories: any CategoryRepository
+        categories: any CategoryRepository,
+        categorizer: any TransactionCategorizer
     ) {
         transactionRepository = transactions
         accountRepository = accounts
         categoryRepository = categories
+        self.categorizer = categorizer
     }
 
     /// Операции, сгруппированные по дню, новые сверху.
@@ -88,7 +91,8 @@ final class TransactionsViewModel {
             source: .manual
         )
         do {
-            try await transactionRepository.save([transaction])
+            // Категорию, выбранную вручную, правила не трогают; без неё — подсказка по описанию.
+            try await transactionRepository.save(try await categorizer.categorize([transaction]))
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -110,12 +114,14 @@ public struct TransactionsScreen: View {
     public init(
         transactions: any TransactionRepository,
         accounts: any AccountRepository,
-        categories: any CategoryRepository
+        categories: any CategoryRepository,
+        categorizer: any TransactionCategorizer
     ) {
         _model = State(initialValue: TransactionsViewModel(
             transactions: transactions,
             accounts: accounts,
-            categories: categories
+            categories: categories,
+            categorizer: categorizer
         ))
     }
 

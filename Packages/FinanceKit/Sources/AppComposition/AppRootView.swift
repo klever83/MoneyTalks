@@ -22,7 +22,8 @@ public struct AppRootView: View {
                 TransactionsScreen(
                     transactions: dependencies.transactions,
                     accounts: dependencies.accounts,
-                    categories: dependencies.categories
+                    categories: dependencies.categories,
+                    categorizer: dependencies.categorizer
                 )
             }
             Tab("Аналитика", systemImage: "chart.pie") {
@@ -34,7 +35,8 @@ public struct AppRootView: View {
                     banks: BankParsersBY.banks,
                     accounts: dependencies.accounts,
                     transactions: dependencies.transactions,
-                    imports: dependencies.imports
+                    imports: dependencies.imports,
+                    categorizer: dependencies.categorizer
                 )
             }
             Tab("Счета", systemImage: "creditcard") {

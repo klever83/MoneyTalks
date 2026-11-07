@@ -1,4 +1,5 @@
 import BankParsersBY
+import Categorization
 import Domain
 import Persistence
 import StatementImport
@@ -9,6 +10,8 @@ public struct Dependencies: Sendable {
     public let transactions: any TransactionRepository
     public let categories: any CategoryRepository
     public let imports: any ImportRepository
+    public let categoryRules: any CategoryRuleRepository
+    public let categorizer: any TransactionCategorizer
     public let parserRegistry: ParserRegistry
 
     init(database: AppDatabase) {
@@ -16,6 +19,9 @@ public struct Dependencies: Sendable {
         transactions = GRDBTransactionRepository(database: database)
         categories = GRDBCategoryRepository(database: database)
         imports = GRDBImportRepository(database: database)
+        let rules = GRDBCategoryRuleRepository(database: database)
+        categoryRules = rules
+        categorizer = RuleBasedTransactionCategorizer(repository: rules)
         parserRegistry = ParserRegistry(parsers: BankParsersBY.all)
     }
 

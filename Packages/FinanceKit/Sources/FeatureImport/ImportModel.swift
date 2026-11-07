@@ -47,17 +47,20 @@ final class ImportModel {
     private let accountRepository: any AccountRepository
     private let transactionRepository: any TransactionRepository
     private let importRepository: any ImportRepository
+    private let categorizer: any TransactionCategorizer
 
     init(
         registry: ParserRegistry,
         accounts: any AccountRepository,
         transactions: any TransactionRepository,
-        imports: any ImportRepository
+        imports: any ImportRepository,
+        categorizer: any TransactionCategorizer
     ) {
         self.registry = registry
         accountRepository = accounts
         transactionRepository = transactions
         importRepository = imports
+        self.categorizer = categorizer
     }
 
     /// Счета, в которые можно положить выписку: той же валюты, кроме наличных.
@@ -204,8 +207,7 @@ final class ImportModel {
                 let interval = DateInterval(start: first.addingTimeInterval(-window), end: last.addingTimeInterval(window + 1))
                 recent = try await transactionRepository.transactions(TransactionQuery(interval: interval))
             }
-            guard current == generation else { return }
-            plan = ImportPlanner.plan(
+            var plan = ImportPlanner.plan(
                 statement: statement,
                 bank: bank,
                 account: account,
@@ -218,6 +220,12 @@ final class ImportModel {
                 excludedLinks: excluded,
                 batchID: batchID
             )
+            // Категории по правилам. Переводы не категоризуются; снятая в превью связь
+            // снова делает операции расходом и доходом, и они получают категорию при пересчёте.
+            plan.newTransactions = try await categorizer.categorize(plan.newTransactions)
+            plan.walletTransactions = try await categorizer.categorize(plan.walletTransactions)
+            guard current == generation else { return }
+            self.plan = plan
             phase = .preview
         } catch {
             guard current == generation else { return }

@@ -15,14 +15,16 @@ public struct ImportScreen: View {
         banks: [BankInfo],
         accounts: any AccountRepository,
         transactions: any TransactionRepository,
-        imports: any ImportRepository
+        imports: any ImportRepository,
+        categorizer: any TransactionCategorizer
     ) {
         self.banks = banks
         _model = State(initialValue: ImportModel(
             registry: registry,
             accounts: accounts,
             transactions: transactions,
-            imports: imports
+            imports: imports,
+            categorizer: categorizer
         ))
     }
 

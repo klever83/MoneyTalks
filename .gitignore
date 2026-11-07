@@ -23,3 +23,5 @@ statements-private/
 *.pdf
 *.PDF
 !Packages/FinanceKit/Tests/**/Fixtures/**
+# Векторные картинки в asset catalog Xcode хранит как .pdf.
+!**/*.xcassets/**

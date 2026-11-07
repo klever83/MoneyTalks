@@ -76,6 +76,21 @@ extension AppDatabase {
             }
         }
 
+        migrator.registerMigration("v2-category-rules") { db in
+            // Только правила пользователя: встроенные живут в коде (`BuiltInRules`).
+            try db.create(table: "categoryRules") { t in
+                t.primaryKey("id", .blob)
+                // `[CategoryRule.Condition]` в JSON: условия меняются чаще схемы.
+                t.column("conditions", .text).notNull()
+                t.column("categoryID", .blob).notNull().references("categories", onDelete: .cascade)
+                t.column("priority", .integer).notNull().defaults(to: 0)
+                t.column("origin", .text).notNull()
+                t.column("createdAt", .datetime).notNull()
+                t.column("updatedAt", .datetime).notNull()
+                t.column("deletedAt", .datetime)
+            }
+        }
+
         return migrator
     }
 }

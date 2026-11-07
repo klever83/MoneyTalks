@@ -1,4 +1,4 @@
-import Domain
+import Foundation
 
 /// Правило автокатегоризации: все условия должны выполниться.
 public struct CategoryRule: Identifiable, Hashable, Codable, Sendable {
@@ -17,6 +17,9 @@ public struct CategoryRule: Identifiable, Hashable, Codable, Sendable {
     public enum Condition: Hashable, Codable, Sendable {
         case merchantContains(String)
         case merchantEquals(String)
+        /// Отдельное слово в названии: для коротких названий вроде `МТС` или `A1`,
+        /// которые как подстрока совпали бы с чем угодно.
+        case merchantWord(String)
         case mccRange(ClosedRange<Int>)
         case amountSign(Sign)
         case account(Account.ID)
@@ -48,13 +51,16 @@ public struct CategoryRule: Identifiable, Hashable, Codable, Sendable {
 }
 
 extension CategoryRule.Condition {
-    func matches(_ transaction: FinanceTransaction) -> Bool {
+    public func matches(_ transaction: FinanceTransaction) -> Bool {
         switch self {
         case .merchantContains(let text):
             transaction.merchantNormalized.localizedCaseInsensitiveContains(text)
                 || transaction.merchantRaw.localizedCaseInsensitiveContains(text)
         case .merchantEquals(let text):
             transaction.merchantNormalized.caseInsensitiveCompare(text) == .orderedSame
+        case .merchantWord(let word):
+            Self.containsWord(word, in: transaction.merchantNormalized)
+                || Self.containsWord(word, in: transaction.merchantRaw)
         case .mccRange(let range):
             transaction.mcc.map(range.contains) ?? false
         case .amountSign(.negative):
@@ -64,5 +70,20 @@ extension CategoryRule.Condition {
         case .account(let id):
             transaction.accountID == id
         }
+    }
+
+    /// Слово окружено не буквами и не цифрами (или краями строки).
+    static func containsWord(_ word: String, in text: String) -> Bool {
+        func isWordCharacter(_ character: Character?) -> Bool {
+            character.map { $0.isLetter || $0.isNumber } ?? false
+        }
+        var searchRange = text.startIndex..<text.endIndex
+        while let found = text.range(of: word, options: .caseInsensitive, range: searchRange) {
+            let before = found.lowerBound == text.startIndex ? nil : text[text.index(before: found.lowerBound)]
+            let after = found.upperBound == text.endIndex ? nil : text[found.upperBound]
+            if !isWordCharacter(before), !isWordCharacter(after) { return true }
+            searchRange = text.index(after: found.lowerBound)..<text.endIndex
+        }
+        return false
     }
 }
