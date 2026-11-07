@@ -21,7 +21,7 @@ public struct Dependencies: Sendable {
         imports = GRDBImportRepository(database: database)
         let rules = GRDBCategoryRuleRepository(database: database)
         categoryRules = rules
-        categorizer = RuleBasedTransactionCategorizer(repository: rules)
+        categorizer = RuleBasedTransactionCategorizer(repository: rules, categories: categories)
         parserRegistry = ParserRegistry(parsers: BankParsersBY.all)
     }
 

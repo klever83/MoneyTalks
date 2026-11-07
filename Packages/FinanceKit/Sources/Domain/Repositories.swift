@@ -34,9 +34,20 @@ public protocol TransactionRepository: Sendable {
 }
 
 public protocol CategoryRepository: Sendable {
+    /// Все неудалённые категории, включая скрытые: скрытые нужны, чтобы показать категорию старых операций.
     func observeCategories() -> AsyncThrowingStream<[FinanceCategory], any Error>
     func categories() async throws -> [FinanceCategory]
     func save(_ category: FinanceCategory) async throws
+    /// Удаляет пользовательскую категорию вместе с подкатегориями одной транзакцией базы:
+    /// их операции остаются без категории (и без закрепления), правила для них удаляются.
+    /// Системную категорию удалить нельзя — только скрыть.
+    func delete(_ id: FinanceCategory.ID) async throws
+}
+
+public enum CategoryError: Error, Equatable, Sendable {
+    case systemCategoryCannotBeDeleted
+    /// Подкатегорий только два уровня: родитель должен быть верхнего уровня и того же типа.
+    case invalidParent
 }
 
 /// Правила категоризации пользователя. Встроенные правила живут в коде (`BuiltInRules`) и сюда не пишутся.

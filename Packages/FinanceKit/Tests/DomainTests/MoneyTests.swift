@@ -49,3 +49,17 @@ struct MoneyTests {
         #expect(income.kind == .income)
     }
 }
+
+@Suite("Дерево категорий")
+struct CategoryTreeTests {
+    @Test("Родитель, затем его подкатегории; сирота — на верхнем уровне")
+    func tree() {
+        let food = FinanceCategory(name: "Еда", systemImage: "tag", colorHex: "#000000", kind: .expense)
+        let lunch = FinanceCategory(name: "Обеды", systemImage: "tag", colorHex: "#000000", parentID: food.id, kind: .expense)
+        let taxi = FinanceCategory(name: "Такси", systemImage: "tag", colorHex: "#000000", kind: .expense)
+        let orphan = FinanceCategory(name: "Сирота", systemImage: "tag", colorHex: "#000000", parentID: .init(), kind: .expense)
+        let result = FinanceCategory.tree([lunch, food, taxi, orphan])
+        #expect(result.map(\.category.name) == ["Еда", "Обеды", "Такси", "Сирота"])
+        #expect(result.map(\.depth) == [0, 1, 0, 0])
+    }
+}

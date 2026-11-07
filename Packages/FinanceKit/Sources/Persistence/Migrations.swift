@@ -69,10 +69,19 @@ extension AppDatabase {
         }
 
         migrator.registerMigration("v1-system-categories") { db in
+            // Явные колонки схемы v1, а не `CategoryRecord`: запись знает о колонках из более поздних
+            // миграций (`isHidden`), которых на этом шаге ещё нет.
             for (index, category) in SystemCategories.all.enumerated() {
-                var category = category
-                category.sortOrder = index
-                try CategoryRecord(category).insert(db)
+                try db.execute(
+                    sql: """
+                    INSERT INTO categories (id, name, systemKey, systemImage, colorHex, parentID, kind, sortOrder, updatedAt)
+                    VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)
+                    """,
+                    arguments: [
+                        category.id.rawValue, category.name, category.systemKey, category.systemImage,
+                        category.colorHex, category.kind.rawValue, index, category.updatedAt,
+                    ]
+                )
             }
         }
 
@@ -88,6 +97,12 @@ extension AppDatabase {
                 t.column("createdAt", .datetime).notNull()
                 t.column("updatedAt", .datetime).notNull()
                 t.column("deletedAt", .datetime)
+            }
+        }
+
+        migrator.registerMigration("v3-category-hidden") { db in
+            try db.alter(table: "categories") { t in
+                t.add(column: "isHidden", .boolean).notNull().defaults(to: false)
             }
         }
 

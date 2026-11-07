@@ -139,17 +139,11 @@ public enum TransferMatcher {
     /// пополнение и выдача средств. Остальные MCC — покупки.
     static let transferMCC: Set<Int> = [4829, 6010, 6011, 6012, 6051, 6538, 6540]
 
-    /// Слова, по которым банки помечают переводы между счетами и картами.
-    static let transferWords = [
-        "перевод", "p2p", "пополнение", "поступление на контракт", "payment from", "обмен", "конверс",
-        "transfer", "popolnenie",
-    ]
-
+    /// MCC подходит, это не комиссия, и в описании есть признак перевода (`TransferWords`).
     static func looksLikeTransfer(_ transaction: FinanceTransaction) -> Bool {
         if let mcc = transaction.mcc, !transferMCC.contains(mcc) { return false }
         if CashWithdrawals.isFee(transaction.merchantRaw) { return false }
-        let text = transaction.merchantRaw.lowercased()
-        return transferWords.contains { text.contains($0) }
+        return TransferWords.appear(in: transaction.merchantRaw)
     }
 
     /// Номера документов в описании: от шести цифр, можно через дефис (`000000-00000-000001`).

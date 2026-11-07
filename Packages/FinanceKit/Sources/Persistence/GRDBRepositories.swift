@@ -140,12 +140,50 @@ public struct GRDBCategoryRepository: CategoryRepository {
         }
     }
 
+    /// Сохраняет категорию. Подкатегорий два уровня: родитель — неудалённая категория верхнего уровня
+    /// того же типа, а у самой категории с родителем не может быть своих подкатегорий.
     public func save(_ category: FinanceCategory) async throws {
-        var category = category
-        category.updatedAt = .now
-        let record = CategoryRecord(category)
+        var updated = category
+        updated.updatedAt = .now
+        let record = CategoryRecord(updated)
+        let category = updated
         try await database.writer.write { db in
+            if let parentID = category.parentID {
+                guard parentID != category.id,
+                      let parent = try CategoryRecord.filter(key: parentID.rawValue).filter(deletedAt == nil).fetchOne(db),
+                      parent.parentID == nil,
+                      parent.kind == category.kind.rawValue,
+                      try CategoryRecord.filter(Column("parentID") == category.id.rawValue && deletedAt == nil).fetchCount(db) == 0
+                else { throw CategoryError.invalidParent }
+            }
             try record.save(db)
+        }
+    }
+
+    public func delete(_ id: FinanceCategory.ID) async throws {
+        let now = Date.now
+        try await database.writer.write { db in
+            guard let category = try CategoryRecord.fetchOne(db, key: id.rawValue), category.deletedAt == nil else { return }
+            guard category.systemKey == nil else { throw CategoryError.systemCategoryCannotBeDeleted }
+            let ids = [id.rawValue] + (try CategoryRecord
+                .filter(Column("parentID") == id.rawValue && deletedAt == nil)
+                .select(Column("id"), as: UUID.self)
+                .fetchAll(db))
+            _ = try CategoryRecord
+                .filter(keys: ids)
+                .updateAll(db, deletedAt.set(to: now), Column("updatedAt").set(to: now))
+            // Операции остаются без категории и без закрепления: правила смогут подобрать новую.
+            _ = try TransactionRecord
+                .filter(ids.contains(Column("categoryID")))
+                .updateAll(
+                    db,
+                    Column("categoryID").set(to: nil),
+                    Column("categoryLocked").set(to: false),
+                    Column("updatedAt").set(to: now)
+                )
+            _ = try CategoryRuleRecord
+                .filter(ids.contains(Column("categoryID")) && deletedAt == nil)
+                .updateAll(db, deletedAt.set(to: now), Column("updatedAt").set(to: now))
         }
     }
 
