@@ -155,10 +155,7 @@ public struct PriorbankParser: StatementParser {
             ))
         }
         if blockedCount > 0 {
-            warnings.append(ParseWarning(
-                line: nil,
-                message: "Заблокированные суммы не импортированы (\(blockedCount)): они появятся после проведения"
-            ))
+            warnings.append(BankParsersBY.pendingWarning("Заблокированные суммы", count: blockedCount, periodEnd: period?.end))
         }
         // Самопроверка: начальный баланс плюс обороты должен дать конечный.
         if let opening, let closing {
