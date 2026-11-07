@@ -111,7 +111,7 @@ public struct OplatiParser: StatementParser {
                 ))
             }
         } else {
-            warnings.append(ParseWarning(line: nil, message: "Обороты за период в выписке не найдены, сверка не выполнена"))
+            warnings.append(BankParsersBY.noCheckWarning)
         }
 
         let closing = opening.flatMap { opening in totals.map { opening + $0.income - $0.expense } }

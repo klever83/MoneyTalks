@@ -6,8 +6,9 @@ import StatementImport
 ///
 /// Девять колонок: дата операции, дата транзакции, последние цифры карты, описание, место,
 /// валюта транзакции, сумма транзакции, сумма в валюте карт-счёта, остаток. Ячейки выровнены
-/// по центру строки. Суммы без знака, поэтому направление берётся из остатка: если остаток
-/// изменился ровно на сумму, знак по нему, иначе по описанию (пополнение, отмена списания и т. п.).
+/// по центру строки, строки идут от старых к новым. Суммы без знака, поэтому направление берётся
+/// из остатка относительно предыдущей строки: если он изменился ровно на сумму, знак по нему,
+/// иначе по описанию (пополнение, отмена списания и т. п.).
 ///
 /// Остатков на начало и конец периода нет, есть обороты «Поступило» и «Списано»; по ним и сверяемся.
 /// «Погашение тех овердрафта» банк в обороты не включает: это внутренняя проводка, которая закрывает
@@ -78,7 +79,8 @@ public struct BSBBankParser: StatementParser {
 
         var rows: [ParsedRow] = []
         var warnings: [ParseWarning] = []
-        var card: String?
+        /// Сколько операций по каждой карте: у карт-счёта их может быть несколько, для счёта берём основную.
+        var cards: [String: Int] = [:]
         var previousBalance: Decimal?
         var lastBalance: Decimal?
         var overdraftRepayments = 0
@@ -94,7 +96,7 @@ public struct BSBBankParser: StatementParser {
                 previousBalance = balance
                 lastBalance = balance
             }
-            if card == nil, cells[2].wholeMatch(of: /\d{4}/) != nil { card = cells[2] }
+            if cells[2].wholeMatch(of: /\d{4}/) != nil { cards[cells[2], default: 0] += 1 }
             guard amount != 0 else { continue }
             let title = cells[3]
             if title.lowercased().hasPrefix("погашение тех") {
@@ -146,6 +148,7 @@ public struct BSBBankParser: StatementParser {
             warnings.append(BankParsersBY.noCheckWarning)
         }
 
+        let card = cards.max { $0.value != $1.value ? $0.value < $1.value : $0.key > $1.key }?.key
         let closing = lastBalance
         let opening = closing.map { $0 - income + expense }
         return ParsedStatement(
