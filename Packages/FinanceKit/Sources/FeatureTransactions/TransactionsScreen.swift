@@ -1,3 +1,4 @@
+import Categorization
 import DesignSystem
 import Domain
 import SwiftUI
@@ -14,17 +15,20 @@ final class TransactionsViewModel {
     private let accountRepository: any AccountRepository
     private let categoryRepository: any CategoryRepository
     private let categorizer: any TransactionCategorizer
+    private let ruleRepository: any CategoryRuleRepository
 
     init(
         transactions: any TransactionRepository,
         accounts: any AccountRepository,
         categories: any CategoryRepository,
-        categorizer: any TransactionCategorizer
+        categorizer: any TransactionCategorizer,
+        rules: any CategoryRuleRepository
     ) {
         transactionRepository = transactions
         accountRepository = accounts
         categoryRepository = categories
         self.categorizer = categorizer
+        ruleRepository = rules
     }
 
     /// Операции, сгруппированные по дню, новые сверху.
@@ -98,6 +102,61 @@ final class TransactionsViewModel {
         }
     }
 
+    func transaction(id: FinanceTransaction.ID) -> FinanceTransaction? {
+        transactions.first { $0.id == id }
+    }
+
+    func account(for transaction: FinanceTransaction) -> Account? {
+        accounts.first { $0.id == transaction.accountID }
+    }
+
+    /// Сохраняет правку операции. Ручная смена категории закрепляет её (`categoryLocked`),
+    /// и тогда возвращается предложение «всегда так» для мерчанта.
+    func save(_ edited: FinanceTransaction, original: FinanceTransaction) async -> AlwaysOffer? {
+        var edited = edited
+        let categoryChanged = edited.categoryID != original.categoryID
+        if categoryChanged { edited.categoryLocked = true }
+        if edited.kind != .transfer {
+            edited.kind = edited.amount.isNegative ? .expense : .income
+        }
+        do {
+            try await transactionRepository.save([edited])
+            guard categoryChanged, edited.kind != .transfer, let categoryID = edited.categoryID else { return nil }
+            let rules = try await ruleRepository.rules()
+            guard let rule = AlwaysRule.make(for: edited, categoryID: categoryID, existing: rules) else { return nil }
+            let past = AlwaysRule.affected(
+                by: rule,
+                in: try await transactionRepository.transactions(TransactionQuery())
+            ).filter { $0.id != edited.id }
+            return AlwaysOffer(
+                rule: rule,
+                merchant: rule.conditions.compactMap(\.merchantKeyTitle).first ?? edited.merchantNormalized,
+                category: categories.first { $0.id == categoryID },
+                past: past
+            )
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    /// «Всегда так»: сохраняет правило и, если попросили, меняет категорию прошлых операций мерчанта.
+    /// Прошлые операции не закрепляются: это решение правила, а не ручной выбор.
+    func acceptAlways(_ offer: AlwaysOffer, applyToPast: Bool) async {
+        do {
+            try await ruleRepository.save(offer.rule)
+            guard applyToPast, !offer.past.isEmpty else { return }
+            let updated = offer.past.map { transaction in
+                var transaction = transaction
+                transaction.categoryID = offer.rule.categoryID
+                return transaction
+            }
+            try await transactionRepository.save(updated)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func delete(_ transaction: FinanceTransaction) async {
         do {
             try await transactionRepository.delete(transaction.id)
@@ -115,13 +174,15 @@ public struct TransactionsScreen: View {
         transactions: any TransactionRepository,
         accounts: any AccountRepository,
         categories: any CategoryRepository,
-        categorizer: any TransactionCategorizer
+        categorizer: any TransactionCategorizer,
+        rules: any CategoryRuleRepository
     ) {
         _model = State(initialValue: TransactionsViewModel(
             transactions: transactions,
             accounts: accounts,
             categories: categories,
-            categorizer: categorizer
+            categorizer: categorizer,
+            rules: rules
         ))
     }
 
@@ -131,12 +192,14 @@ public struct TransactionsScreen: View {
                 ForEach(model.days, id: \.day) { day in
                     Section {
                         ForEach(day.items) { transaction in
-                            TransactionRow(transaction: transaction, category: model.category(for: transaction))
-                                .swipeActions {
-                                    Button("Удалить", systemImage: "trash", role: .destructive) {
-                                        Task { await model.delete(transaction) }
-                                    }
+                            NavigationLink(value: transaction.id) {
+                                TransactionRow(transaction: transaction, category: model.category(for: transaction))
+                            }
+                            .swipeActions {
+                                Button("Удалить", systemImage: "trash", role: .destructive) {
+                                    Task { await model.delete(transaction) }
                                 }
+                            }
                         }
                     } header: {
                         Text(day.day, format: .dateTime.day().month(.wide).weekday(.wide))
@@ -153,6 +216,9 @@ public struct TransactionsScreen: View {
                 }
             }
             .navigationTitle("Операции")
+            .navigationDestination(for: FinanceTransaction.ID.self) { id in
+                TransactionDetailView(model: model, transactionID: id)
+            }
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button("Добавить", systemImage: "plus") { isAdding = true }

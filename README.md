@@ -16,11 +16,11 @@ iOS-приложение для учёта личных финансов: сче
 MoneyTalks.xcodeproj        тонкий app-таргет: только точка входа и ресурсы
 MoneyTalks/                 MoneyTalksApp.swift, Assets, Localizable.xcstrings (RU + EN)
 Packages/FinanceKit/        весь код приложения, модули SPM
-  Domain                    Money, Currency, Account, FinanceTransaction, FinanceCategory, CategoryRule, протоколы репозиториев
+  Domain                    Money, Currency, Account, FinanceTransaction, FinanceCategory, CategoryRule, MerchantNormalizer, протоколы репозиториев
   Persistence               GRDB (SQLite): миграции, записи, репозитории
   StatementImport           протокол StatementParser, реестр парсеров, CSV, суммы, дедупликация
   BankParsersBY             парсеры белорусских банков (ждут образцов выписок)
-  Categorization            нормализация мерчантов, движок правил, встроенные правила (мерчанты Беларуси, MCC)
+  Categorization            движок правил, «всегда так», встроенные правила (мерчанты Беларуси, MCC)
   ExchangeRates             курсы НБ РБ
   Analytics                 итоги и агрегаты
   DesignSystem              форматирование сумм, тема, общие компоненты

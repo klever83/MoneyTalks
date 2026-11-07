@@ -20,6 +20,9 @@ public struct CategoryRule: Identifiable, Hashable, Codable, Sendable {
         /// Отдельное слово в названии: для коротких названий вроде `МТС` или `A1`,
         /// которые как подстрока совпали бы с чем угодно.
         case merchantWord(String)
+        /// Ключ мерчанта (`MerchantNormalizer.key`) совпадает: правило «всегда так» из правки категории.
+        /// `EVROOPT 123 MINSK BY` и `EVROOPT 45 GRODNO` дают один ключ.
+        case merchantKey(String)
         case mccRange(ClosedRange<Int>)
         case amountSign(Sign)
         case account(Account.ID)
@@ -46,12 +49,28 @@ public struct CategoryRule: Identifiable, Hashable, Codable, Sendable {
     }
 
     public func matches(_ transaction: FinanceTransaction) -> Bool {
-        !conditions.isEmpty && conditions.allSatisfy { $0.matches(transaction) }
+        var cached: String?
+        return matches(transaction) {
+            if let cached { return cached }
+            let key = MerchantNormalizer.key(transaction.merchantRaw)
+            cached = key
+            return key
+        }
+    }
+
+    /// Проверка с уже посчитанным ключом мерчанта: при переборе многих правил ключ считается
+    /// один раз на операцию, а не на каждое правило.
+    public func matches(_ transaction: FinanceTransaction, merchantKey: () -> String) -> Bool {
+        !conditions.isEmpty && conditions.allSatisfy { $0.matches(transaction, merchantKey: merchantKey) }
     }
 }
 
 extension CategoryRule.Condition {
     public func matches(_ transaction: FinanceTransaction) -> Bool {
+        matches(transaction) { MerchantNormalizer.key(transaction.merchantRaw) }
+    }
+
+    public func matches(_ transaction: FinanceTransaction, merchantKey: () -> String) -> Bool {
         switch self {
         case .merchantContains(let text):
             transaction.merchantNormalized.localizedCaseInsensitiveContains(text)
@@ -61,6 +80,8 @@ extension CategoryRule.Condition {
         case .merchantWord(let word):
             Self.containsWord(word, in: transaction.merchantNormalized)
                 || Self.containsWord(word, in: transaction.merchantRaw)
+        case .merchantKey(let key):
+            !key.isEmpty && merchantKey() == key.lowercased()
         case .mccRange(let range):
             transaction.mcc.map(range.contains) ?? false
         case .amountSign(.negative):
