@@ -26,7 +26,7 @@ public enum CashWithdrawals {
         // Приорбанк: тип операции в начале описания, `ATM BLR GOMEL …`, `Cash BLR Minsk Dop.ofis …`.
         if text.contains(/^(?:ATM|Cash)\s/) { return true }
         let lowered = text.lowercased()
-        return ["выдача наличных", "снятие наличных", "получение денег в банкомате", "взнос наличных", "внесение наличных"]
+        return ["выдача наличных", "снятие наличных", "получение наличных", "получение денег в банкомате", "взнос наличных", "внесение наличных"]
             .contains { lowered.contains($0) }
     }
 

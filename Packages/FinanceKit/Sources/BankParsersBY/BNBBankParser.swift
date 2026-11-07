@@ -49,10 +49,11 @@ public struct BNBBankParser: StatementParser {
                let start = BYDate.date(String(match.1)), let end = BYDate.date(String(match.2)) {
                 period = DateInterval(start: start, end: end.addingTimeInterval(86_399))
             }
-            if opening == nil, let match = text.firstMatch(of: /^Остаток на начало периода ([+-]?\d[\d ]*(?:\.\d+)?) [A-Z]{3}/) {
+            // Знак может стоять через пробел, как в таблице: `- 12.00 BYN`.
+            if opening == nil, let match = text.firstMatch(of: /^Остаток на начало периода ([+-]?\s?\d[\d ]*(?:\.\d+)?) [A-Z]{3}/) {
                 opening = AmountParser.decimal(from: String(match.1))
             }
-            if closing == nil, let match = text.firstMatch(of: /^Остаток на конец периода ([+-]?\d[\d ]*(?:\.\d+)?) [A-Z]{3}/) {
+            if closing == nil, let match = text.firstMatch(of: /^Остаток на конец периода ([+-]?\s?\d[\d ]*(?:\.\d+)?) [A-Z]{3}/) {
                 closing = AmountParser.decimal(from: String(match.1))
             }
             if card == nil, let match = text.firstMatch(of: /^Информация о картах \d\*{3} \*{4} \*{4} (\d{4})/) {
@@ -111,10 +112,7 @@ public struct BNBBankParser: StatementParser {
         }
 
         if !pending.isEmpty {
-            warnings.append(ParseWarning(
-                line: nil,
-                message: "Операции в обработке не импортированы (\(pending.count)): они появятся после проведения"
-            ))
+            warnings.append(BankParsersBY.pendingWarning("Операции в обработке", count: pending.count, periodEnd: period?.end))
         }
         if layout.uncertainWords > 0 {
             warnings.append(ParseWarning(
@@ -131,6 +129,8 @@ public struct BNBBankParser: StatementParser {
                     message: "Сумма операций не сходится с остатком выписки: ожидалось \(closing), получилось \(total)"
                 ))
             }
+        } else {
+            warnings.append(BankParsersBY.noCheckWarning)
         }
 
         return ParsedStatement(

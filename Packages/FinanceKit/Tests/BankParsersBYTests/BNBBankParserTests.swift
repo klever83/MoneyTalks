@@ -8,7 +8,7 @@ import Testing
 struct BNBBankParserTests {
     /// Разметка как у выписки по счёту из интернет-банка, данные выдуманные.
     /// Сводка на первой странице, таблица со второй, шапка повторяется на каждой странице.
-    static func statement(closing: String = "35.87") -> PDFFixture {
+    static func statement(opening: String = "50.00", closing: String = "35.87") -> PDFFixture {
         var pdf = PDFFixture()
         pdf.pageSize = CGSize(width: 595, height: 842)
         pdf.fontSize = 7
@@ -23,7 +23,7 @@ struct BNBBankParserTests {
         pdf.text("Информация о картах", x: 54, y: 530)
         pdf.text("5*** **** **** 1234 - Цифровая Mastercard, BYN", x: 249, y: 530)
         pdf.text("Остаток на начало периода", x: 54, y: 657)
-        pdf.text("50.00 BYN", x: 249, y: 657)
+        pdf.text("\(opening) BYN", x: 249, y: 657)
         pdf.text("Остаток на конец периода", x: 54, y: 735)
         pdf.text("\(closing) BYN", x: 249, y: 735)
         pdf.text("1/3", x: 538, y: 824)
@@ -152,8 +152,16 @@ struct BNBBankParserTests {
         let statement = try Self.parse(Self.statement())
         #expect(!statement.rows.contains { $0.amount.minorUnits == -441 })
         #expect(statement.warnings.map(\.message) == [
-            "Операции в обработке не импортированы (1): они появятся после проведения",
+            "Операции в обработке не импортированы (1): они появятся после проведения. Следующую выписку выгрузите начиная с 31.10.2026",
         ])
+    }
+
+    @Test("Отрицательный остаток со знаком через пробел читается, сверка выполняется")
+    func negativeBalance() throws {
+        let statement = try Self.parse(Self.statement(opening: "- 14.13", closing: "- 28.26"))
+        #expect(statement.openingBalance == Money(minorUnits: -1_413, currency: .byn))
+        #expect(statement.closingBalance == Money(minorUnits: -2_826, currency: .byn))
+        #expect(!statement.warnings.contains { $0.message.hasPrefix("Сумма операций не сходится") || $0.message.contains("сверка не выполнена") })
     }
 
     @Test("Если остаток не сходится, парсер предупреждает")

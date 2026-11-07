@@ -104,7 +104,7 @@ struct BelinvestbankParserTests {
         #expect(statement.openingBalance == Money(minorUnits: 6_115, currency: .byn))
         #expect(statement.closingBalance == Money(minorUnits: 3_000, currency: .byn))
         #expect(statement.warnings.map(\.message) == [
-            "Заблокированные суммы не импортированы (1): они появятся после проведения",
+            "Заблокированные суммы не импортированы (1): они появятся после проведения. Следующую выписку выгрузите начиная с 07.11.2026",
         ])
         let start = try #require(statement.period?.start)
         #expect(Self.minsk.dateComponents([.month, .day], from: start) == DateComponents(month: 11, day: 1))

@@ -128,10 +128,7 @@ public struct BelinvestbankParser: StatementParser {
         }
 
         if blocked > 0 {
-            warnings.append(ParseWarning(
-                line: nil,
-                message: "Заблокированные суммы не импортированы (\(blocked)): они появятся после проведения"
-            ))
+            warnings.append(BankParsersBY.pendingWarning("Заблокированные суммы", count: blocked, periodEnd: period?.end))
         }
         // Строки от новых к старым: остаток каждой — остаток следующей (более старой) плюс сумма.
         for (newer, older) in zip(chain, chain.dropFirst()) where newer.balance != older.balance + newer.total {
@@ -151,7 +148,7 @@ public struct BelinvestbankParser: StatementParser {
                 ))
             }
         } else {
-            warnings.append(ParseWarning(line: nil, message: "Обороты за период в выписке не найдены, сверка не выполнена"))
+            warnings.append(BankParsersBY.noCheckWarning)
         }
 
         let closing = chain.first?.balance
