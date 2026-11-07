@@ -31,7 +31,14 @@ public struct RuleCategorizer: Categorizer {
     }
 
     public func suggest(for transaction: FinanceTransaction) -> CategorySuggestion? {
-        guard let rule = rules.first(where: { $0.matches(transaction) }) else { return nil }
+        var cachedKey: String?
+        let merchantKey: () -> String = {
+            if let cachedKey { return cachedKey }
+            let key = MerchantNormalizer.key(transaction.merchantRaw)
+            cachedKey = key
+            return key
+        }
+        guard let rule = rules.first(where: { $0.matches(transaction, merchantKey: merchantKey) }) else { return nil }
         return CategorySuggestion(
             categoryID: rule.categoryID,
             ruleID: rule.id,

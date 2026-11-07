@@ -198,3 +198,11 @@ struct TransactionDetailView: View {
         return model.categories.filter { $0.kind == kind || $0.id == current }
     }
 }
+
+extension CategoryRule.Condition {
+    /// Ключ мерчанта для показа в предложении «всегда так»: `yandex go` → `Yandex Go`.
+    var merchantKeyTitle: String? {
+        guard case let .merchantKey(key) = self else { return nil }
+        return key.capitalized(with: Locale(identifier: "ru_BY"))
+    }
+}

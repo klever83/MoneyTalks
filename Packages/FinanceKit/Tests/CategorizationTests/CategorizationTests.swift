@@ -175,9 +175,36 @@ struct AlwaysRuleTests {
         ("EVROOPT 7", "evroopt"),
         ("EVROOPT 45 GRODNO", "evroopt"),
         ("YANDEX*GO 4455 MINSK", "yandex go"),
+        ("Retail BLR MINSK EVROOPT 123", "evroopt"),
+        ("Безналичная оплата EVROOPT 12", "evroopt"),
+        ("Оплата услуг ЕРИП МТС 375291234567", "мтс"),
     ])
     func merchantKey(raw: String, expected: String) {
         #expect(MerchantNormalizer.key(raw) == expected)
+    }
+
+    @Test("P2P, ЕРИП и переводы без мерчанта не получают «всегда так»", arguments: [
+        "CH Debit BLR MINSK P2P SDBO NO FEE",
+        "Оплата услуг ЕРИП 1234567",
+        "Перевод с карты на карту",
+        "Поступление на счёт",
+    ])
+    func noRuleWithoutMerchant(raw: String) {
+        let transaction = FinanceTransaction(
+            accountID: Account.ID(), bookedAt: .now, amount: Money(minorUnits: -100, currency: .byn),
+            merchantRaw: raw, source: .imported
+        )
+        #expect(MerchantNormalizer.key(raw).isEmpty)
+        #expect(AlwaysRule.make(for: transaction, categoryID: FinanceCategory.systemID(for: "gifts"), existing: []) == nil)
+    }
+
+    @Test("Пустой ключ в правиле ни с чем не совпадает")
+    func emptyKeyNeverMatches() {
+        let transaction = FinanceTransaction(
+            accountID: Account.ID(), bookedAt: .now, amount: Money(minorUnits: -100, currency: .byn),
+            merchantRaw: "P2P 123", source: .imported
+        )
+        #expect(!CategoryRule.Condition.merchantKey("").matches(transaction))
     }
 
     @Test("Затрагивает только незакреплённые операции мерчанта с другой категорией")

@@ -130,7 +130,7 @@ final class TransactionsViewModel {
             ).filter { $0.id != edited.id }
             return AlwaysOffer(
                 rule: rule,
-                merchant: MerchantNormalizer.normalize(edited.merchantRaw),
+                merchant: rule.conditions.compactMap(\.merchantKeyTitle).first ?? edited.merchantNormalized,
                 category: categories.first { $0.id == categoryID },
                 past: past
             )
