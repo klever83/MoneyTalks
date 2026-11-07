@@ -7,6 +7,7 @@ import SwiftUI
 @Observable
 final class AnalyticsViewModel {
     private(set) var totals: [Currency: IncomeExpense] = [:]
+    var errorMessage: String?
     private let repository: any TransactionRepository
 
     init(repository: any TransactionRepository) {
@@ -25,7 +26,7 @@ final class AnalyticsViewModel {
                 totals = Totals.byCurrency(items)
             }
         } catch {
-            totals = [:]
+            errorMessage = error.localizedDescription
         }
     }
 }
@@ -60,6 +61,7 @@ public struct AnalyticsScreen: View {
                 }
             }
             .navigationTitle("Аналитика")
+            .errorAlert($model.errorMessage)
             .task { await model.observeCurrentMonth() }
         }
     }

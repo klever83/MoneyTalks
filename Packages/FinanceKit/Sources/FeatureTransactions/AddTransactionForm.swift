@@ -22,7 +22,9 @@ struct AddTransactionForm: View {
 
     @State private var accountID: Account.ID?
     @State private var isExpense = true
-    @State private var amount: Decimal?
+    /// Строка, а не `TextField(value:format:)`: тот обновляет значение только при подтверждении ввода,
+    /// а у `.decimalPad` нет Return, и сумма терялась при сразу нажатом «Сохранить» (#35).
+    @State private var amountText = ""
     @State private var title = ""
     @State private var categoryID: FinanceCategory.ID?
     @State private var date = Date.now
@@ -30,6 +32,10 @@ struct AddTransactionForm: View {
 
     private var availableCategories: [FinanceCategory] {
         categories.filter { $0.kind == (isExpense ? .expense : .income) }
+    }
+
+    private var amount: Decimal? {
+        Self.parseAmount(amountText)
     }
 
     private var canSave: Bool {
@@ -45,7 +51,7 @@ struct AddTransactionForm: View {
                 }
                 .pickerStyle(.segmented)
 
-                TextField("Сумма", value: $amount, format: .number)
+                TextField("Сумма", text: $amountText)
                     #if os(iOS)
                     .keyboardType(.decimalPad)
                     #endif
@@ -98,5 +104,15 @@ struct AddTransactionForm: View {
                 categoryID = nil
             }
         }
+    }
+
+    /// `12`, `12,5`, `1 250.40`: запятая или точка, пробелы между разрядами, до двух знаков после запятой.
+    static func parseAmount(_ text: String) -> Decimal? {
+        var text = text.trimmingCharacters(in: .whitespaces)
+        text.removeAll { $0 == " " || $0 == "\u{00A0}" || $0 == "\u{202F}" }
+        text = text.replacingOccurrences(of: ",", with: ".")
+        guard text.wholeMatch(of: /\d+(?:\.\d{0,2})?|\.\d{1,2}/) != nil else { return nil }
+        if text.hasPrefix(".") { text = "0" + text }
+        return Decimal(string: text, locale: Locale(identifier: "en_US_POSIX"))
     }
 }
