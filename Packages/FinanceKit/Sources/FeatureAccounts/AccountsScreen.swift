@@ -97,6 +97,7 @@ public struct AccountsScreen: View {
             } message: { account in
                 Text("Счёт «\(account.name)» и все его операции будут удалены.")
             }
+            .errorAlert($model.errorMessage)
             .task { await model.observe() }
         }
     }

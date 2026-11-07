@@ -158,6 +158,7 @@ public struct TransactionsScreen: View {
                     Task { await model.addManual(draft) }
                 }
             }
+            .errorAlert($model.errorMessage)
             .task { await model.observe() }
         }
     }

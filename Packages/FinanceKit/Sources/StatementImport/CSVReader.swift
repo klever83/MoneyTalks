@@ -11,20 +11,49 @@ public enum CSVReader {
         return String(data: data, encoding: .windowsCP1251)
     }
 
-    /// Разделитель по первой строке: `;`, `,` или табуляция. По умолчанию `;`.
+    /// Кандидаты в фиксированном порядке: при равных оценках выигрывает тот, что раньше.
+    static let delimiterCandidates: [Character] = [";", ",", "\t"]
+
+    /// Разделитель по первым 20 непустым строкам: `;`, `,` или табуляция. По умолчанию `;`.
+    ///
+    /// У настоящего разделителя количество в строке стабильно (одинаковое число колонок),
+    /// а запятая в суммах вроде `12,50` или в описаниях скачет от строки к строке.
+    /// Поэтому для каждого кандидата берём самое частое ненулевое количество в строке
+    /// и считаем, в скольких строках оно встречается.
     public static func detectDelimiter(in text: String) -> Character {
-        let firstLine = text.split(whereSeparator: \.isNewline).first.map(String.init) ?? ""
-        var counts: [Character: Int] = [";": 0, ",": 0, "\t": 0]
+        let lines = text.split(whereSeparator: \.isNewline)
+            .lazy
+            .filter { !$0.allSatisfy(\.isWhitespace) }
+            .prefix(20)
+        let perLine = Array(lines).map { counts(in: $0) }
+
+        var best: (delimiter: Character, lines: Int, columns: Int)?
+        for candidate in delimiterCandidates {
+            var frequency: [Int: Int] = [:]
+            for lineCounts in perLine {
+                let count = lineCounts[candidate, default: 0]
+                if count > 0 { frequency[count, default: 0] += 1 }
+            }
+            // Самое частое количество; при равенстве — большее (больше колонок).
+            guard let mode = frequency.max(by: { ($0.value, $0.key) < ($1.value, $1.key) }) else { continue }
+            if let current = best, (mode.value, mode.key) <= (current.lines, current.columns) { continue }
+            best = (candidate, mode.value, mode.key)
+        }
+        return best?.delimiter ?? ";"
+    }
+
+    /// Количество кандидатов в строке вне кавычек.
+    private static func counts(in line: Substring) -> [Character: Int] {
+        var counts: [Character: Int] = [:]
         var inQuotes = false
-        for character in firstLine {
-            if character == "\"" { inQuotes.toggle() }
-            if !inQuotes, counts[character] != nil { counts[character, default: 0] += 1 }
+        for character in line {
+            if character == "\"" {
+                inQuotes.toggle()
+            } else if !inQuotes, delimiterCandidates.contains(character) {
+                counts[character, default: 0] += 1
+            }
         }
-        let best = counts.max { lhs, rhs in
-            lhs.value == rhs.value ? lhs.key != ";" : lhs.value < rhs.value
-        }
-        guard let best, best.value > 0 else { return ";" }
-        return best.key
+        return counts
     }
 
     public static func parse(_ text: String, delimiter: Character? = nil) -> [[String]] {

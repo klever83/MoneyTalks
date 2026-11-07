@@ -6,6 +6,7 @@ import SwiftUI
 @Observable
 final class CategoriesViewModel {
     private(set) var categories: [FinanceCategory] = []
+    var errorMessage: String?
     private let repository: any CategoryRepository
 
     init(repository: any CategoryRepository) {
@@ -22,7 +23,7 @@ final class CategoriesViewModel {
                 categories = items
             }
         } catch {
-            categories = []
+            errorMessage = error.localizedDescription
         }
     }
 }
@@ -45,6 +46,7 @@ public struct CategoriesScreen: View {
             }
         }
         .navigationTitle("Категории")
+        .errorAlert($model.errorMessage)
         .task { await model.observe() }
     }
 }

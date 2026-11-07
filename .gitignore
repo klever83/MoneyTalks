@@ -11,8 +11,15 @@ build/
 # macOS
 .DS_Store
 
-# Реальные выписки не коммитим: только обезличенные фикстуры в Tests/**/Fixtures
+# Реальные выписки не коммитим. Файлы выписок игнорируются везде (белый список),
+# кроме обезличенных фикстур в Tests/**/Fixtures.
 statements-private/
-*.private.csv
-*.private.pdf
-*.private.xlsx
+*.csv
+*.CSV
+*.xlsx
+*.XLSX
+*.xls
+*.XLS
+*.pdf
+*.PDF
+!Packages/FinanceKit/Tests/**/Fixtures/**
