@@ -35,7 +35,7 @@ struct AddTransactionForm: View {
     }
 
     private var amount: Decimal? {
-        Self.parseAmount(amountText)
+        AmountInput.parse(amountText)
     }
 
     private var canSave: Bool {
@@ -104,15 +104,5 @@ struct AddTransactionForm: View {
                 categoryID = nil
             }
         }
-    }
-
-    /// `12`, `12,5`, `1 250.40`: запятая или точка, пробелы между разрядами, до двух знаков после запятой.
-    static func parseAmount(_ text: String) -> Decimal? {
-        var text = text.trimmingCharacters(in: .whitespaces)
-        text.removeAll { $0 == " " || $0 == "\u{00A0}" || $0 == "\u{202F}" }
-        text = text.replacingOccurrences(of: ",", with: ".")
-        guard text.wholeMatch(of: /\d+(?:\.\d{0,2})?|\.\d{1,2}/) != nil else { return nil }
-        if text.hasPrefix(".") { text = "0" + text }
-        return Decimal(string: text, locale: Locale(identifier: "en_US_POSIX"))
     }
 }

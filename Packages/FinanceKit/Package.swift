@@ -25,7 +25,7 @@ let package = Package(
         .target(name: "DesignSystem", dependencies: ["Domain"]),
 
         // Фичи: экраны + view model.
-        .target(name: "FeatureTransactions", dependencies: ["Domain", "DesignSystem"]),
+        .target(name: "FeatureTransactions", dependencies: ["Domain", "DesignSystem", "Categorization"]),
         .target(name: "FeatureImport", dependencies: ["Domain", "DesignSystem", "StatementImport"]),
         .target(name: "FeatureAnalytics", dependencies: ["Domain", "DesignSystem", "Analytics"]),
         .target(name: "FeatureAccounts", dependencies: ["Domain", "DesignSystem"]),
@@ -50,5 +50,6 @@ let package = Package(
         .testTarget(name: "CategorizationTests", dependencies: ["Categorization"]),
         .testTarget(name: "ExchangeRatesTests", dependencies: ["ExchangeRates"]),
         .testTarget(name: "AnalyticsTests", dependencies: ["Analytics"]),
+        .testTarget(name: "FeatureTransactionsTests", dependencies: ["FeatureTransactions", "Persistence", "Categorization"]),
     ]
 )

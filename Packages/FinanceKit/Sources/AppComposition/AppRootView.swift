@@ -23,7 +23,8 @@ public struct AppRootView: View {
                     transactions: dependencies.transactions,
                     accounts: dependencies.accounts,
                     categories: dependencies.categories,
-                    categorizer: dependencies.categorizer
+                    categorizer: dependencies.categorizer,
+                    rules: dependencies.categoryRules
                 )
             }
             Tab("Аналитика", systemImage: "chart.pie") {

@@ -75,6 +75,19 @@ struct BuiltInRulesTests {
         #expect(key(merchant) == FinanceCategory.systemID(for: expected))
     }
 
+    @Test("Короткие названия не находятся внутри других слов", arguments: [
+        "PALMIRA", "PIZZALAND", "VALIDOL", "GUBERNIYA", "MELODEX", "ZARAFSHAN",
+    ])
+    func noMatchesInsideWords(merchant: String) {
+        #expect(key(merchant) == nil)
+    }
+
+    @Test("Среди равных по приоритету побеждает самое длинное совпадение")
+    func longestMatchWins() {
+        #expect(key("SILVER SCREEN GREEN CITY") == FinanceCategory.systemID(for: "entertainment"))
+        #expect(key("GREEN CITY") == FinanceCategory.systemID(for: "groceries"))
+    }
+
     @Test("Короткие названия совпадают только отдельным словом")
     func wordsNeedBoundaries() {
         #expect(key("МТСБАНК КОМИССИЯ") == nil)
@@ -152,5 +165,39 @@ struct TransactionCategorizerTests {
         #expect(result[0].categoryID == nil)
         #expect(result[1].categoryID == gifts)
         #expect(result[2].categoryID == nil)
+    }
+}
+
+@Suite("Правило «всегда так»")
+struct AlwaysRuleTests {
+    @Test("Ключ мерчанта один у разных точек сети", arguments: [
+        ("EVROOPT 123 MINSK BY", "evroopt"),
+        ("EVROOPT 7", "evroopt"),
+        ("EVROOPT 45 GRODNO", "evroopt"),
+        ("YANDEX*GO 4455 MINSK", "yandex go"),
+    ])
+    func merchantKey(raw: String, expected: String) {
+        #expect(MerchantNormalizer.key(raw) == expected)
+    }
+
+    @Test("Затрагивает только незакреплённые операции мерчанта с другой категорией")
+    func affected() throws {
+        let account = Account.ID()
+        let gifts = FinanceCategory.systemID(for: "gifts")
+        func make(_ merchant: String, category: FinanceCategory.ID? = nil, locked: Bool = false, kind: FinanceTransaction.Kind? = nil) -> FinanceTransaction {
+            FinanceTransaction(
+                accountID: account, bookedAt: .now, amount: Money(minorUnits: -100, currency: .byn),
+                merchantRaw: merchant, categoryID: category, categoryLocked: locked, kind: kind, source: .imported
+            )
+        }
+        let rule = try #require(AlwaysRule.make(for: make("EVROOPT 1"), categoryID: gifts, existing: []))
+        let candidates = [
+            make("EVROOPT 2"),
+            make("EVROOPT 3", category: gifts),
+            make("EVROOPT 4", locked: true),
+            make("EVROOPT 5", kind: .transfer),
+            make("GIPPO 6"),
+        ]
+        #expect(AlwaysRule.affected(by: rule, in: candidates).map(\.merchantRaw) == ["EVROOPT 2"])
     }
 }

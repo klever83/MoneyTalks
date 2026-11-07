@@ -20,6 +20,9 @@ public struct CategoryRule: Identifiable, Hashable, Codable, Sendable {
         /// Отдельное слово в названии: для коротких названий вроде `МТС` или `A1`,
         /// которые как подстрока совпали бы с чем угодно.
         case merchantWord(String)
+        /// Ключ мерчанта (`MerchantNormalizer.key`) совпадает: правило «всегда так» из правки категории.
+        /// `EVROOPT 123 MINSK BY` и `EVROOPT 45 GRODNO` дают один ключ.
+        case merchantKey(String)
         case mccRange(ClosedRange<Int>)
         case amountSign(Sign)
         case account(Account.ID)
@@ -61,6 +64,8 @@ extension CategoryRule.Condition {
         case .merchantWord(let word):
             Self.containsWord(word, in: transaction.merchantNormalized)
                 || Self.containsWord(word, in: transaction.merchantRaw)
+        case .merchantKey(let key):
+            MerchantNormalizer.key(transaction.merchantRaw) == key.lowercased()
         case .mccRange(let range):
             transaction.mcc.map(range.contains) ?? false
         case .amountSign(.negative):

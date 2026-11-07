@@ -5,6 +5,8 @@ import Foundation
 ///
 /// Живут в коде, а не в базе: обновляются вместе с приложением. Правила пользователя
 /// всегда важнее (`RuleCategorizer`), а внутри встроенных мерчант важнее MCC.
+/// Среди правил одного приоритета побеждает самое длинное совпадение (`RuleCategorizer`):
+/// «SILVER SCREEN GREEN CITY» — кино, а не продукты по слову GREEN.
 /// Категории — системные, по `systemKey`: их ID одинаковы на всех устройствах.
 public enum BuiltInRules {
     static let merchantPriority = 100
@@ -17,19 +19,18 @@ public enum BuiltInRules {
     /// Подстроки достаточно длинные, чтобы не совпасть случайно; короткие названия — отдельным словом.
     private static let merchants: [(key: String, contains: [String], words: [String])] = [
         ("groceries", [
-            "EVROOPT", "ЕВРООПТ", "GIPPO", "ГИППО", "KORONA", "КОРОНА", "ALMI", "АЛМИ",
+            "EVROOPT", "ЕВРООПТ", "GIPPO", "ГИППО", "KORONA", "КОРОНА",
             "BELMARKET", "БЕЛМАРКЕТ", "RUBLEVSKIY", "РУБЛЕВСКИЙ", "SOSEDI", "СОСЕДИ",
             "VITALUR", "ВИТАЛЮР", "GROSHYK", "ГРОШЫК", "HIT DISKONT", "ХИТ ДИСКОНТ", "MART INN",
-        ], ["SANTA", "САНТА", "GREEN", "ГРИН"]),
+        ], ["SANTA", "САНТА", "GREEN", "ГРИН", "ALMI", "АЛМИ"]),
         ("cafes", [
             "MCDONALD", "МАКДОНАЛДС", "BURGER KING", "VKUSNO I TOCHKA", "ВКУСНО И ТОЧКА",
             "STARBUCKS", "COFFEE", "КОФЕЙНЯ", "PAPA JOHNS", "DOMINOS", "DODO PIZZA", "ДОДО ПИЦЦА",
-            "LIDO", "ЛИДО",
-        ], ["KFC"]),
+        ], ["KFC", "LIDO", "ЛИДО"]),
         ("taxi", [
             "YANDEX GO", "YANDEX*GO", "YANDEX.GO", "YANDEX.TAXI", "ЯНДЕКС GO", "ЯНДЕКС ТАКСИ",
-            "UBER", "TAXI", "ТАКСИ",
-        ], []),
+            "TAXI", "ТАКСИ",
+        ], ["UBER"]),
         ("transport", [
             "BELARUSNEFT", "БЕЛОРУСНЕФТЬ", "LUKOIL", "ЛУКОЙЛ", "GAZPROMNEFT", "ГАЗПРОМНЕФТЬ",
             "METROPOLITEN", "МЕТРОПОЛИТЕН", "BELZHD", "BELARUSKAYA ZHELEZNAYA", "БЕЛОРУССКАЯ ЖЕЛЕЗНАЯ",
@@ -39,16 +40,16 @@ public enum BuiltInRules {
             "MINSKENERGO", "VODOKANAL",
         ], []),
         ("telecom", [
-            "BELTELECOM", "БЕЛТЕЛЕКОМ", "ZALA", "BYFLY", "LIFE:)",
-        ], ["MTS", "МТС", "A1"]),
+            "BELTELECOM", "БЕЛТЕЛЕКОМ", "BYFLY", "LIFE:)",
+        ], ["MTS", "МТС", "A1", "ZALA"]),
         ("health", [
-            "APTEKA", "АПТЕКА", "PHARMACY", "БЕЛФАРМАЦИЯ", "BELFARMACIYA", "LODE", "ЛОДЭ",
+            "APTEKA", "АПТЕКА", "PHARMACY", "БЕЛФАРМАЦИЯ", "BELFARMACIYA",
             "СТОМАТОЛОГ", "STOMATOLOG", "МЕДЦЕНТР", "MEDCENTR",
-        ], []),
+        ], ["LODE", "ЛОДЭ"]),
         ("clothes", [
-            "ZARA", "LC WAIKIKI", "MARK FORMELLE", "МАРК ФОРМЭЛЬ", "MILAVITSA", "МИЛАВИЦА",
+            "LC WAIKIKI", "MARK FORMELLE", "МАРК ФОРМЭЛЬ", "MILAVITSA", "МИЛАВИЦА",
             "BELWEST", "БЕЛВЕСТ", "SPORTMASTER", "СПОРТМАСТЕР", "RESERVED", "BERSHKA", "PULL&BEAR",
-        ], []),
+        ], ["ZARA"]),
         ("subscriptions", [
             "NETFLIX", "SPOTIFY", "APPLE.COM/BILL", "ICLOUD", "YOUTUBE", "YANDEX PLUS", "ЯНДЕКС ПЛЮС",
             "KINOPOISK", "КИНОПОИСК", "OPENAI", "CHATGPT",
