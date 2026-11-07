@@ -30,8 +30,8 @@ struct AddTransactionForm: View {
     @State private var date = Date.now
     @State private var note = ""
 
-    private var availableCategories: [FinanceCategory] {
-        categories.filter { $0.kind == (isExpense ? .expense : .income) }
+    private var availableCategories: [(category: FinanceCategory, depth: Int)] {
+        FinanceCategory.tree(categories.filter { $0.kind == (isExpense ? .expense : .income) && !$0.isHidden })
     }
 
     private var amount: Decimal? {
@@ -66,8 +66,8 @@ struct AddTransactionForm: View {
 
                 Picker("Категория", selection: $categoryID) {
                     Text("Без категории").tag(FinanceCategory.ID?.none)
-                    ForEach(availableCategories) { category in
-                        Label(category.displayName, systemImage: category.systemImage).tag(Optional(category.id))
+                    ForEach(availableCategories, id: \.category.id) { item in
+                        CategoryPickerLabel(category: item.category, depth: item.depth).tag(Optional(item.category.id))
                     }
                 }
 

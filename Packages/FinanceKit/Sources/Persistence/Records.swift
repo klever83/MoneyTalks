@@ -60,6 +60,7 @@ struct CategoryRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
     var colorHex: String
     var parentID: UUID?
     var kind: String
+    var isHidden: Bool
     var sortOrder: Int
     var updatedAt: Date
     var deletedAt: Date?
@@ -72,6 +73,7 @@ struct CategoryRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
         colorHex = category.colorHex
         parentID = category.parentID?.rawValue
         kind = category.kind.rawValue
+        isHidden = category.isHidden
         sortOrder = category.sortOrder
         updatedAt = category.updatedAt
         deletedAt = category.deletedAt
@@ -86,6 +88,7 @@ struct CategoryRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
             colorHex: colorHex,
             parentID: parentID.map { FinanceCategory.ID($0) },
             kind: FinanceCategory.Kind(rawValue: kind) ?? .expense,
+            isHidden: isHidden,
             sortOrder: sortOrder,
             updatedAt: updatedAt,
             deletedAt: deletedAt

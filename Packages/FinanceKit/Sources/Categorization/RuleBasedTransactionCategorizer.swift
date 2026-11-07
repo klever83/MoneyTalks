@@ -2,19 +2,30 @@ import Domain
 
 /// Категоризация по правилам пользователя и встроенным правилам.
 /// Правила читаются при каждом вызове: новое правило пользователя сразу действует на следующий импорт.
+/// Если передан репозиторий категорий, правила, ведущие в скрытые или удалённые категории, пропускаются.
 public struct RuleBasedTransactionCategorizer: TransactionCategorizer {
     private let repository: any CategoryRuleRepository
+    private let categories: (any CategoryRepository)?
     private let builtIn: [CategoryRule]
 
-    public init(repository: any CategoryRuleRepository, builtIn: [CategoryRule] = BuiltInRules.all) {
+    public init(
+        repository: any CategoryRuleRepository,
+        categories: (any CategoryRepository)? = nil,
+        builtIn: [CategoryRule] = BuiltInRules.all
+    ) {
         self.repository = repository
+        self.categories = categories
         self.builtIn = builtIn
     }
 
     public func categorize(_ transactions: [FinanceTransaction]) async throws -> [FinanceTransaction] {
         guard transactions.contains(where: Self.needsCategory) else { return transactions }
-        let categorizer = RuleCategorizer(rules: try await repository.rules() + builtIn)
-        return categorizer.apply(to: transactions)
+        var rules = try await repository.rules() + builtIn
+        if let categories {
+            let available = Set(try await categories.categories().filter { !$0.isHidden }.map(\.id))
+            rules = rules.filter { available.contains($0.categoryID) }
+        }
+        return RuleCategorizer(rules: rules).apply(to: transactions)
     }
 
     static func needsCategory(_ transaction: FinanceTransaction) -> Bool {

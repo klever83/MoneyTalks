@@ -114,8 +114,8 @@ struct TransactionDetailView: View {
                 } else {
                     Picker("Категория", selection: binding.categoryID) {
                         Text("Без категории").tag(FinanceCategory.ID?.none)
-                        ForEach(categories(isExpense: binding.wrappedValue.isExpense, current: transaction.categoryID)) { category in
-                            Label(category.displayName, systemImage: category.systemImage).tag(Optional(category.id))
+                        ForEach(categories(isExpense: binding.wrappedValue.isExpense, current: transaction.categoryID), id: \.category.id) { item in
+                            CategoryPickerLabel(category: item.category, depth: item.depth).tag(Optional(item.category.id))
                         }
                     }
                 }
@@ -192,10 +192,11 @@ struct TransactionDetailView: View {
         Task { await model.acceptAlways(offer, applyToPast: applyToPast) }
     }
 
-    /// Категории нужного типа; текущая категория операции остаётся в списке, даже если другого типа.
-    private func categories(isExpense: Bool, current: FinanceCategory.ID?) -> [FinanceCategory] {
+    /// Видимые категории нужного типа деревом; текущая категория операции остаётся в списке,
+    /// даже если она скрыта или другого типа.
+    private func categories(isExpense: Bool, current: FinanceCategory.ID?) -> [(category: FinanceCategory, depth: Int)] {
         let kind: FinanceCategory.Kind = isExpense ? .expense : .income
-        return model.categories.filter { $0.kind == kind || $0.id == current }
+        return FinanceCategory.tree(model.categories.filter { ($0.kind == kind && !$0.isHidden) || $0.id == current })
     }
 }
 

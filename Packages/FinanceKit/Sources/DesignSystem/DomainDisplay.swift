@@ -45,3 +45,21 @@ extension Color {
         )
     }
 }
+
+/// Строка категории в пикере: подкатегория с отступом.
+public struct CategoryPickerLabel: View {
+    private let category: FinanceCategory
+    private let depth: Int
+
+    public init(category: FinanceCategory, depth: Int) {
+        self.category = category
+        self.depth = depth
+    }
+
+    public var body: some View {
+        Label(
+            (depth > 0 ? "    " : "") + category.displayName,
+            systemImage: category.systemImage
+        )
+    }
+}

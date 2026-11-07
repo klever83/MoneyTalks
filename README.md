@@ -17,7 +17,7 @@ MoneyTalks.xcodeproj        тонкий app-таргет: только точк
 MoneyTalks/                 MoneyTalksApp.swift, Assets, Localizable.xcstrings (RU + EN)
 Packages/FinanceKit/        весь код приложения, модули SPM
   Domain                    Money, Currency, Account, FinanceTransaction, FinanceCategory, CategoryRule, MerchantNormalizer, протоколы репозиториев
-  Persistence               GRDB (SQLite): миграции, записи, репозитории
+  Persistence               GRDB (SQLite): миграции, записи, репозитории (категории, правила, операции)
   StatementImport           протокол StatementParser, реестр парсеров, CSV, суммы, дедупликация
   BankParsersBY             парсеры белорусских банков (ждут образцов выписок)
   Categorization            движок правил, «всегда так», встроенные правила (мерчанты Беларуси, MCC)
