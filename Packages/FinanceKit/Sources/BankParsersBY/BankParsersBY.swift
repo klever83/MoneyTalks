@@ -10,12 +10,17 @@ public enum BankParsersBY {
         BelarusbankParser(),
         AlfabankParser(),
         BNBBankParser(),
+        BelinvestbankParser(),
+        OplatiParser(),
     ]
 
     public static let belarusbank = BankInfo(id: "by.belarusbank", name: "Беларусбанк", country: "BY")
     public static let alfabank = BankInfo(id: "by.alfabank", name: "Альфа-Банк", country: "BY")
     public static let priorbank = BankInfo(id: "by.priorbank", name: "Приорбанк", country: "BY")
     public static let bnb = BankInfo(id: "by.bnb", name: "БНБ-Банк", country: "BY")
+    public static let belinvestbank = BankInfo(id: "by.belinvestbank", name: "Белинвестбанк", country: "BY")
+    /// Электронный кошелёк Белинвестбанка: отдельный «банк», чтобы кошелёк не смешивался со счетами карт.
+    public static let oplati = BankInfo(id: "by.oplati", name: "Оплати", country: "BY")
 
     /// Банки, выписки которых читаются: список на экране импорта. Берётся из парсеров,
     /// чтобы в нём не оказалось банка без парсера.
