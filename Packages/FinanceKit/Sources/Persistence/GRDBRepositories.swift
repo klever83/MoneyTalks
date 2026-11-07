@@ -143,9 +143,10 @@ public struct GRDBCategoryRepository: CategoryRepository {
     /// Сохраняет категорию. Подкатегорий два уровня: родитель — неудалённая категория верхнего уровня
     /// того же типа, а у самой категории с родителем не может быть своих подкатегорий.
     public func save(_ category: FinanceCategory) async throws {
-        var category = category
-        category.updatedAt = .now
-        let record = CategoryRecord(category)
+        var updated = category
+        updated.updatedAt = .now
+        let record = CategoryRecord(updated)
+        let category = updated
         try await database.writer.write { db in
             if let parentID = category.parentID {
                 guard parentID != category.id,
