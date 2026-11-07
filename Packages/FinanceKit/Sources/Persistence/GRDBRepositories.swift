@@ -156,6 +156,41 @@ public struct GRDBCategoryRepository: CategoryRepository {
     }
 }
 
+public struct GRDBCategoryRuleRepository: CategoryRuleRepository {
+    private let database: AppDatabase
+
+    public init(database: AppDatabase) {
+        self.database = database
+    }
+
+    public func rules() async throws -> [CategoryRule] {
+        try await database.writer.read { db in
+            try CategoryRuleRecord
+                .filter(deletedAt == nil)
+                .order(Column("createdAt"))
+                .fetchAll(db)
+                .compactMap(\.domain)
+        }
+    }
+
+    public func save(_ rule: CategoryRule) async throws {
+        let now = Date.now
+        try await database.writer.write { db in
+            let createdAt = try CategoryRuleRecord.fetchOne(db, key: rule.id.rawValue)?.createdAt ?? now
+            try CategoryRuleRecord(rule, createdAt: createdAt, updatedAt: now).save(db)
+        }
+    }
+
+    public func delete(_ id: CategoryRule.ID) async throws {
+        let now = Date.now
+        try await database.writer.write { db in
+            _ = try CategoryRuleRecord
+                .filter(key: id.rawValue)
+                .updateAll(db, deletedAt.set(to: now), Column("updatedAt").set(to: now))
+        }
+    }
+}
+
 public struct GRDBImportRepository: ImportRepository {
     private let database: AppDatabase
 
