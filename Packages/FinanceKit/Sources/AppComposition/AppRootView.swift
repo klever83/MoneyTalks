@@ -45,7 +45,7 @@ public struct AppRootView: View {
             }
             Tab("Настройки", systemImage: "gearshape") {
                 SettingsScreen {
-                    CategoriesScreen(repository: dependencies.categories)
+                    CategoriesScreen(repository: dependencies.categories, rules: dependencies.categoryRules)
                 }
             }
         }

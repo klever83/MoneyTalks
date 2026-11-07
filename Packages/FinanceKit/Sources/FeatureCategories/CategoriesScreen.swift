@@ -6,11 +6,36 @@ import SwiftUI
 @Observable
 final class CategoriesViewModel {
     private(set) var categories: [FinanceCategory] = []
+    /// Правила пользователя («всегда так»): их можно удалить из редактора категории.
+    private(set) var rules: [CategoryRule] = []
     var errorMessage: String?
     private let repository: any CategoryRepository
+    private let ruleRepository: any CategoryRuleRepository
 
-    init(repository: any CategoryRepository) {
+    init(repository: any CategoryRepository, rules: any CategoryRuleRepository) {
         self.repository = repository
+        ruleRepository = rules
+    }
+
+    func rules(for category: FinanceCategory) -> [CategoryRule] {
+        rules.filter { $0.categoryID == category.id }
+    }
+
+    func loadRules() async {
+        do {
+            rules = try await ruleRepository.rules()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func deleteRule(_ rule: CategoryRule) async {
+        do {
+            try await ruleRepository.delete(rule.id)
+            rules.removeAll { $0.id == rule.id }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     /// Категории типа деревом: родитель, за ним подкатегории.
@@ -73,6 +98,7 @@ final class CategoriesViewModel {
     func delete(_ category: FinanceCategory) async {
         do {
             try await repository.delete(category.id)
+            await loadRules()
         } catch {
             errorMessage = Self.message(for: error)
         }
@@ -96,8 +122,8 @@ public struct CategoriesScreen: View {
     @State private var editing: FinanceCategory?
     @State private var categoryToDelete: FinanceCategory?
 
-    public init(repository: any CategoryRepository) {
-        _model = State(initialValue: CategoriesViewModel(repository: repository))
+    public init(repository: any CategoryRepository, rules: any CategoryRuleRepository) {
+        _model = State(initialValue: CategoriesViewModel(repository: repository, rules: rules))
     }
 
     public var body: some View {
@@ -120,7 +146,9 @@ public struct CategoriesScreen: View {
             CategoryEditor(
                 category: category,
                 isNew: !model.categories.contains { $0.id == category.id },
-                parents: model.parentCandidates(for: category)
+                parents: model.parentCandidates(for: category),
+                rules: model.rules(for: category),
+                onDeleteRule: { await model.deleteRule($0) }
             ) { edited in
                 await model.save(edited)
             }
@@ -141,6 +169,7 @@ public struct CategoriesScreen: View {
         }
         .errorAlert($model.errorMessage)
         .task { await model.observe() }
+        .task { await model.loadRules() }
     }
 
     private func section(_ title: LocalizedStringKey, kind: FinanceCategory.Kind) -> some View {

@@ -26,17 +26,23 @@ struct CategoryEditor: View {
     private let isNew: Bool
     private let parents: [FinanceCategory]
     private let onSave: (FinanceCategory) async -> Bool
+    private let onDeleteRule: (CategoryRule) async -> Void
+    @State private var rules: [CategoryRule]
     @State private var isSaving = false
 
     init(
         category: FinanceCategory,
         isNew: Bool,
         parents: [FinanceCategory],
+        rules: [CategoryRule] = [],
+        onDeleteRule: @escaping (CategoryRule) async -> Void = { _ in },
         onSave: @escaping (FinanceCategory) async -> Bool
     ) {
         _category = State(initialValue: category)
+        _rules = State(initialValue: rules)
         self.isNew = isNew
         self.parents = parents
+        self.onDeleteRule = onDeleteRule
         self.onSave = onSave
     }
 
@@ -67,6 +73,23 @@ struct CategoryEditor: View {
                 } footer: {
                     if category.isHidden {
                         Text("Скрытая категория не предлагается при выборе и в автокатегоризации, но остаётся у старых операций.")
+                    }
+                }
+
+                if !rules.isEmpty {
+                    Section {
+                        ForEach(rules) { rule in
+                            Text(rule.summary)
+                        }
+                        .onDelete { offsets in
+                            let removed = offsets.map { rules[$0] }
+                            rules.remove(atOffsets: offsets)
+                            Task { for rule in removed { await onDeleteRule(rule) } }
+                        }
+                    } header: {
+                        Text("Всегда так")
+                    } footer: {
+                        Text("Операции этих мерчантов получают категорию автоматически. Смахните, чтобы удалить правило.")
                     }
                 }
 
@@ -141,5 +164,28 @@ struct CategoryEditor: View {
         CategoryAppearance.symbols.contains(category.systemImage)
             ? CategoryAppearance.symbols
             : [category.systemImage] + CategoryAppearance.symbols
+    }
+}
+
+extension CategoryRule {
+    /// Правило одной строкой: `Evroopt`, `MCC 5411–5499`, `«кофе», расход`.
+    var summary: String {
+        conditions.map { condition in
+            switch condition {
+            case .merchantKey(let key):
+                key.capitalized(with: Locale(identifier: "ru_BY"))
+            case .merchantContains(let text), .merchantEquals(let text), .merchantWord(let text):
+                "«\(text)»"
+            case .mccRange(let range):
+                range.lowerBound == range.upperBound ? "MCC \(range.lowerBound)" : "MCC \(range.lowerBound)–\(range.upperBound)"
+            case .amountSign(.negative):
+                String(localized: "расход")
+            case .amountSign(.positive):
+                String(localized: "доход")
+            case .account:
+                String(localized: "счёт")
+            }
+        }
+        .joined(separator: ", ")
     }
 }
