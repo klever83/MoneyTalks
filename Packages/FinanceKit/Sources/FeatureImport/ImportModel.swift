@@ -199,6 +199,7 @@ final class ImportModel {
         }
         do {
             let fingerprints = isNew ? [] : try await transactionRepository.fingerprints(accountID: account.id)
+            let earliest = isNew ? nil : try await transactionRepository.earliestBookedAt(accountID: account.id)
             let dates = statement.rows.map(\.bookedAt)
             let window = TransferMatcher.defaultWindow
             let deletedAccounts = try await accountRepository.deletedAccountIDs()
@@ -214,6 +215,7 @@ final class ImportModel {
                 isNewAccount: isNew,
                 existingFingerprints: fingerprints,
                 existingAccounts: accounts,
+                earliestTransactionDate: earliest,
                 deletedAccountIDs: deletedAccounts,
                 recentTransactions: recent,
                 walletName: String(localized: "Наличные"),

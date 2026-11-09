@@ -55,6 +55,17 @@ final class OverviewViewModel {
         ExpenseBreakdown.slices(current?.expenses(in: currency) ?? [])
     }
 
+    /// Сумма срезов диаграммы: от неё считаются доли, поэтому она и стоит в центре.
+    /// Может быть больше чистых расходов, если в какой-то категории возвраты перекрыли покупки.
+    var slicesTotal: Money {
+        Money(minorUnits: slices.reduce(Int64(0)) { $0 + $1.amount.minorUnits }, currency: currency)
+    }
+
+    /// За месяц нет ни одной операции: тогда уместно предложить импорт.
+    var isMonthEmpty: Bool {
+        current?.totals.isEmpty != false
+    }
+
     var history: [(month: Date, expense: Money)] {
         summaries.map { ($0.interval.start, $0.incomeExpense(in: currency).expense) }
     }
@@ -127,7 +138,9 @@ public struct AnalyticsScreen: View {
                         ContentUnavailableView(
                             "Расходов нет",
                             systemImage: "chart.pie",
-                            description: Text("Импортируйте выписку или добавьте операцию — здесь появятся траты по категориям")
+                            description: model.isMonthEmpty
+                                ? Text("Импортируйте выписку или добавьте операцию — здесь появятся траты по категориям")
+                                : Text("В этом месяце расходов нет")
                         )
                     }
                 } else {
@@ -200,7 +213,7 @@ public struct AnalyticsScreen: View {
         .chartBackground { _ in
             VStack(spacing: 2) {
                 Text("Всего").font(.caption).foregroundStyle(.secondary)
-                Text(model.totals.expense.formatted()).font(.headline).monospacedDigit()
+                Text(model.slicesTotal.formatted()).font(.headline).monospacedDigit()
             }
         }
         .frame(height: 220)

@@ -96,6 +96,16 @@ public struct GRDBTransactionRepository: TransactionRepository {
         }
     }
 
+    public func earliestBookedAt(accountID: Account.ID) async throws -> Date? {
+        try await database.writer.read { db in
+            try Date.fetchOne(
+                db,
+                sql: "SELECT MIN(bookedAt) FROM transactions WHERE accountID = ? AND deletedAt IS NULL",
+                arguments: [accountID.rawValue]
+            )
+        }
+    }
+
     public func save(_ transactions: [FinanceTransaction]) async throws {
         let now = Date.now
         let records = transactions.map { transaction in

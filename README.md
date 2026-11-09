@@ -30,6 +30,8 @@ Packages/FinanceKit/        весь код приложения, модули S
 
 Зависимости идут только сверху вниз: фичи знают протоколы из `Domain`, но не GRDB и не конкретные банки.
 
+Исключение: протокол `AnalyticsRepository` и его типы (`PeriodSummary`, `CategoryTotal`, `AnalyticsSide`) лежат в `Analytics`, а не в `Domain`. Это модель аналитики, а не общий домен. Поэтому `Persistence` зависит от `Analytics`. Цикла нет: `Analytics` зависит только от `Domain`.
+
 ## Сборка и тесты
 
 ```bash

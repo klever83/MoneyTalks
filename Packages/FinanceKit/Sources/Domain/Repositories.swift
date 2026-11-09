@@ -34,6 +34,8 @@ public protocol TransactionRepository: Sendable {
     /// Отпечатки операций счёта для дедупликации при импорте, включая удалённые:
     /// удалённая пользователем операция не возвращается при импорте пересекающейся выписки.
     func fingerprints(accountID: Account.ID) async throws -> Set<String>
+    /// Дата самой ранней неудалённой операции счёта, `nil`, если операций нет.
+    func earliestBookedAt(accountID: Account.ID) async throws -> Date?
 }
 
 public protocol CategoryRepository: Sendable {
