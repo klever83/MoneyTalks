@@ -63,6 +63,7 @@ public enum ImportPlanner {
     }
 
     /// Новый счёт по выписке: «Приорбанк •• 4321».
+    /// Начальный остаток берётся из выписки, чтобы после импорта остаток счёта совпал с банком.
     public static func proposedAccount(for statement: ParsedStatement, bank: BankInfo, now: Date = .now) -> Account {
         let digits = statement.accountHint.maskedNumber.map(lastDigits).flatMap { $0.isEmpty ? nil : $0 }
         let currency = statement.accountHint.currency ?? statement.rows.first?.amount.currency ?? .byn
@@ -72,9 +73,23 @@ public enum ImportPlanner {
             currency: currency,
             bankID: bank.id,
             maskedNumber: digits.map { "•• \($0)" },
+            openingBalance: openingBalance(of: statement, currency: currency),
             createdAt: now,
             updatedAt: now
         )
+    }
+
+    /// Остаток на начало периода выписки в валюте счёта. Если банк дал только конечный остаток,
+    /// начальный восстанавливается вычитанием операций. Без остатков в выписке — `nil` (ноль).
+    static func openingBalance(of statement: ParsedStatement, currency: Currency) -> Money? {
+        if let opening = statement.openingBalance, opening.currency == currency {
+            return opening
+        }
+        guard let closing = statement.closingBalance, closing.currency == currency else { return nil }
+        let turnover = statement.rows
+            .filter { $0.amount.currency == currency }
+            .reduce(Int64(0)) { $0 + $1.amount.minorUnits }
+        return Money(minorUnits: closing.minorUnits - turnover, currency: currency)
     }
 
     /// План импорта.

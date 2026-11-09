@@ -45,3 +45,17 @@ public struct Account: Identifiable, Hashable, Codable, Sendable {
         self.deletedAt = deletedAt
     }
 }
+
+public extension Account {
+    /// Счёт с таким начальным остатком, чтобы текущий остаток стал `target`.
+    /// Операции не меняются: оборот по ним — разница между `current` и прежним начальным остатком.
+    /// - Parameters:
+    ///   - target: остаток, который пользователь видит в банке.
+    ///   - current: текущий остаток по данным приложения.
+    func withCurrentBalance(_ target: Money, current: Money) throws(MoneyError) -> Account {
+        let turnover = try current.adding(openingBalance.negated)
+        var account = self
+        account.openingBalance = try target.adding(turnover.negated)
+        return account
+    }
+}

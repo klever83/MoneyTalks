@@ -21,6 +21,9 @@ public protocol AccountRepository: Sendable {
     func delete(_ id: Account.ID) async throws
     /// Идентификаторы удалённых счетов: новый счёт не должен получить такой же и «воскресить» удалённый.
     func deletedAccountIDs() async throws -> Set<Account.ID>
+    /// Поток текущих остатков неудалённых счетов: начальный остаток плюс сумма неудалённых операций
+    /// в валюте счёта. Новое значение после каждого изменения счетов или операций.
+    func observeBalances() -> AsyncThrowingStream<[Account.ID: Money], any Error>
 }
 
 public protocol TransactionRepository: Sendable {

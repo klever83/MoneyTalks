@@ -31,7 +31,7 @@ struct AddTransactionForm: View {
     @State private var note = ""
 
     private var availableCategories: [(category: FinanceCategory, depth: Int)] {
-        FinanceCategory.tree(categories.filter { $0.kind == (isExpense ? .expense : .income) && !$0.isHidden })
+        FinanceCategory.tree(FinanceCategory.visible(categories).filter { $0.kind == (isExpense ? .expense : .income) })
     }
 
     private var amount: Decimal? {

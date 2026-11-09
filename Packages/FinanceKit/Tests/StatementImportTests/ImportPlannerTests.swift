@@ -48,6 +48,23 @@ struct ImportPlannerTests {
         #expect(account.name == "Тестбанк •• 4321")
         #expect(account.kind == .card && account.currency == .byn)
         #expect(account.bankID == "by.test" && account.maskedNumber == "•• 4321")
+        #expect(account.openingBalance == .zero(.byn))
+    }
+
+    @Test("Начальный остаток нового счёта берётся из выписки или восстанавливается по конечному")
+    func proposedOpeningBalance() {
+        var statement = statement
+        statement.openingBalance = Money(minorUnits: 100_000, currency: .byn)
+        statement.closingBalance = Money(minorUnits: 38_450, currency: .byn)
+        #expect(ImportPlanner.proposedAccount(for: statement, bank: bank).openingBalance.minorUnits == 100_000)
+
+        // Только конечный остаток: 384,50 + 1 250 + 10 000 + 50 000 + 300 копеек оборота.
+        statement.openingBalance = nil
+        #expect(ImportPlanner.proposedAccount(for: statement, bank: bank).openingBalance.minorUnits == 100_000)
+
+        // Остаток в другой валюте не подставляется.
+        statement.closingBalance = Money(minorUnits: 38_450, currency: .usd)
+        #expect(ImportPlanner.proposedAccount(for: statement, bank: bank).openingBalance == .zero(.byn))
     }
 
     func plan(
