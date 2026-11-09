@@ -38,8 +38,11 @@ public struct ImportPlan: Sendable {
     /// Строки, которые уже импортированы раньше.
     public var duplicates: Int
     public var links: [ImportLink]
+    /// Начальный остаток существующего счёта заменяется остатком из выписки
+    /// (выписка начинается не позже первой операции счёта).
+    public var updatesOpeningBalance = false
 
-    public var accountsToSave: [Account] { (isNewAccount ? [account] : []) + newWallets }
+    public var accountsToSave: [Account] { (isNewAccount || updatesOpeningBalance ? [account] : []) + newWallets }
     /// Новые операции; уже сохранённые обновляются точечно через `transferLinks`.
     public var transactionsToSave: [FinanceTransaction] { newTransactions + walletTransactions }
 }
@@ -96,6 +99,8 @@ public enum ImportPlanner {
     /// - Parameters:
     ///   - existingFingerprints: отпечатки уже сохранённых операций выбранного счёта.
     ///   - existingAccounts: все счета приложения (для кошельков наличных).
+    ///   - earliestTransactionDate: дата самой ранней неудалённой операции выбранного счёта,
+    ///     `nil`, если операций нет. Нужна, чтобы взять начальный остаток из более ранней выписки.
     ///   - deletedAccountIDs: удалённые счета: их идентификаторы новым кошелькам не достаются.
     ///   - recentTransactions: сохранённые операции всех счетов за период выписки с запасом
     ///     в окно поиска переводов: с ними ищутся пары для новых строк.
@@ -108,6 +113,7 @@ public enum ImportPlanner {
         isNewAccount: Bool,
         existingFingerprints: Set<String>,
         existingAccounts: [Account],
+        earliestTransactionDate: Date?,
         deletedAccountIDs: Set<Account.ID> = [],
         recentTransactions: [FinanceTransaction],
         walletName: String,
@@ -115,6 +121,13 @@ public enum ImportPlanner {
         batchID: UUID = UUID(),
         now: Date = .now
     ) -> ImportPlan {
+        var account = account
+        var updatesOpeningBalance = false
+        if !isNewAccount {
+            updatesOpeningBalance = updateOpeningBalance(
+                of: &account, from: statement, earliestTransactionDate: earliestTransactionDate
+            )
+        }
         let split = ImportDeduplicator.split(statement.rows, accountID: account.id, existing: existingFingerprints)
         let imported = split.new.map { row, fingerprint in
             FinanceTransaction(
@@ -204,8 +217,26 @@ public enum ImportPlanner {
             newWallets: newWallets,
             updatedTransactions: updatedTransactions,
             duplicates: split.duplicates.count,
-            links: links.sorted { $0.outgoing.bookedAt > $1.outgoing.bookedAt }
+            links: links.sorted { $0.outgoing.bookedAt > $1.outgoing.bookedAt },
+            updatesOpeningBalance: updatesOpeningBalance
         )
+    }
+
+    /// Выписка за период, начинающийся не позже первой операции счёта, знает остаток на начало
+    /// всей истории счёта: её начальный остаток становится начальным остатком счёта.
+    /// Так более ранняя выписка, импортированная после поздней, не задваивает остаток.
+    /// При пересечении периодов дубли отсеивает дедупликация, и остаток по-прежнему сходится.
+    /// Если раньше периода есть операции (например, ручные), остаток не трогается.
+    static func updateOpeningBalance(
+        of account: inout Account, from statement: ParsedStatement, earliestTransactionDate: Date?
+    ) -> Bool {
+        guard let opening = statement.openingBalance, opening.currency == account.currency,
+              let start = statement.period?.start ?? statement.rows.map(\.bookedAt).min(),
+              opening != account.openingBalance
+        else { return false }
+        if let earliestTransactionDate, earliestTransactionDate < start { return false }
+        account.openingBalance = opening
+        return true
     }
 
     private static func lastDigits(_ text: String) -> String {

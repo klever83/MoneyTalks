@@ -238,4 +238,21 @@ struct RepositoryTests {
             empty.id: .zero(.usd),
         ])
     }
+
+    @Test("Самая ранняя неудалённая операция счёта")
+    func earliestBookedAt() async throws {
+        let card = Account(name: "Карта", kind: .card, currency: .byn)
+        try await accounts.save(card)
+        #expect(try await transactions.earliestBookedAt(accountID: card.id) == nil)
+        func transaction(_ seconds: TimeInterval) -> FinanceTransaction {
+            FinanceTransaction(
+                accountID: card.id, bookedAt: Date(timeIntervalSince1970: seconds),
+                amount: Money(minorUnits: -100, currency: .byn), merchantRaw: "A", source: .manual
+            )
+        }
+        let first = transaction(1_000)
+        try await transactions.save([transaction(5_000), first, transaction(3_000)])
+        try await transactions.delete(first.id)
+        #expect(try await transactions.earliestBookedAt(accountID: card.id) == Date(timeIntervalSince1970: 3_000))
+    }
 }

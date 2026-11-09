@@ -188,12 +188,16 @@ public struct CategoriesScreen: View {
                 }
                 .foregroundStyle(.primary)
                 .swipeActions {
+                    // Подкатегория скрытого родителя скрыта вместе с ним: своё «Скрыть» ничего бы не поменяло
+                    // на экране, а после показа родителя она неожиданно осталась бы скрытой.
                     if item.category.isSystem {
-                        Button(
-                            item.category.isHidden ? "Показать" : "Скрыть",
-                            systemImage: item.category.isHidden ? "eye" : "eye.slash"
-                        ) {
-                            Task { await model.setHidden(!item.category.isHidden, item.category) }
+                        if item.category.isHidden || !hidden.contains(item.category.id) {
+                            Button(
+                                item.category.isHidden ? "Показать" : "Скрыть",
+                                systemImage: item.category.isHidden ? "eye" : "eye.slash"
+                            ) {
+                                Task { await model.setHidden(!item.category.isHidden, item.category) }
+                            }
                         }
                     } else {
                         Button("Удалить", systemImage: "trash", role: .destructive) {

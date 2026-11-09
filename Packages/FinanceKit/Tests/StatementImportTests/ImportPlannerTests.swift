@@ -73,7 +73,7 @@ struct ImportPlannerTests {
     ) -> ImportPlan {
         ImportPlanner.plan(
             statement: statement, bank: bank, account: account, isNewAccount: true,
-            existingFingerprints: fingerprints, existingAccounts: existingAccounts,
+            existingFingerprints: fingerprints, existingAccounts: existingAccounts, earliestTransactionDate: nil,
             recentTransactions: saved, walletName: "Наличные", excludedLinks: excluded
         )
     }
@@ -104,6 +104,38 @@ struct ImportPlannerTests {
         #expect(plan.transferLinks == [TransferLink(transactionID: income.id, pairID: pairID)])
     }
 
+    @Test("Более ранняя выписка в существующий счёт задаёт его начальный остаток")
+    func earlierStatementUpdatesOpeningBalance() {
+        var statement = statement
+        statement.period = DateInterval(start: start, duration: 86_400)
+        statement.openingBalance = Money(minorUnits: 100_000, currency: .byn)
+        let account = Account(
+            name: "Карта", kind: .card, currency: .byn, bankID: "by.test", maskedNumber: "•• 4321",
+            openingBalance: Money(minorUnits: 5_000, currency: .byn)
+        )
+        func plan(earliest: Date?) -> ImportPlan {
+            ImportPlanner.plan(
+                statement: statement, bank: bank, account: account, isNewAccount: false,
+                existingFingerprints: [], existingAccounts: [account], earliestTransactionDate: earliest,
+                recentTransactions: [], walletName: "Наличные"
+            )
+        }
+
+        // Операции счёта начинаются позже выписки (или их нет): остаток берётся из выписки.
+        for earliest in [start.addingTimeInterval(30 * 86_400), nil] {
+            let later = plan(earliest: earliest)
+            #expect(later.updatesOpeningBalance)
+            #expect(later.account.openingBalance.minorUnits == 100_000)
+            #expect(later.accountsToSave.contains { $0.id == account.id })
+        }
+
+        // Есть операция раньше начала выписки: остаток не трогается.
+        let earlier = plan(earliest: start.addingTimeInterval(-86_400))
+        #expect(!earlier.updatesOpeningBalance)
+        #expect(earlier.account.openingBalance.minorUnits == 5_000)
+        #expect(!earlier.accountsToSave.contains { $0.id == account.id })
+    }
+
     @Test("Одинаковый номер операции у двух строк даёт разные отпечатки")
     func repeatedReference() {
         let rows = [
@@ -119,7 +151,7 @@ struct ImportPlannerTests {
         let stable = CashWithdrawals.wallet(for: .byn, among: [], name: "Наличные").id
         let plan = ImportPlanner.plan(
             statement: statement, bank: bank, account: account, isNewAccount: true,
-            existingFingerprints: [], existingAccounts: [], deletedAccountIDs: [stable],
+            existingFingerprints: [], existingAccounts: [], earliestTransactionDate: nil, deletedAccountIDs: [stable],
             recentTransactions: [], walletName: "Наличные", excludedLinks: []
         )
         #expect(plan.newWallets.count == 1)

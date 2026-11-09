@@ -158,6 +158,11 @@ struct ImportPreviewView: View {
                         Text(opening.formatted()) + Text(" → ") + Text(closing.formatted())
                     }
                 }
+                if plan.updatesOpeningBalance {
+                    Text("Выписка начинается раньше операций счёта: начальный остаток счёта возьмётся из неё.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Section("Счёт") {
