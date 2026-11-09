@@ -1,29 +1,92 @@
 import Analytics
+import Charts
 import DesignSystem
 import Domain
 import SwiftUI
 
 @MainActor
 @Observable
-final class AnalyticsViewModel {
-    private(set) var totals: [Currency: IncomeExpense] = [:]
+final class OverviewViewModel {
+    /// Сколько месяцев показывать на графике динамики.
+    static let historyLength = 6
+
+    /// Любой день выбранного месяца.
+    var month: Date = .now
+    var selectedCurrency: Currency?
+    private(set) var summaries: [PeriodSummary] = []
+    private(set) var categories: [FinanceCategory] = []
     var errorMessage: String?
-    private let repository: any TransactionRepository
 
-    init(repository: any TransactionRepository) {
-        self.repository = repository
+    private let analytics: any AnalyticsRepository
+    private let categoryRepository: any CategoryRepository
+    private let calendar: Calendar
+
+    init(analytics: any AnalyticsRepository, categories: any CategoryRepository, calendar: Calendar = .current) {
+        self.analytics = analytics
+        categoryRepository = categories
+        self.calendar = calendar
     }
 
+    var current: PeriodSummary? { summaries.last }
+    var previous: PeriodSummary? { summaries.dropLast().last }
+
+    /// Валюты, в которых были операции за показанные месяцы. Пересчёта в основную валюту пока нет (#10).
     var currencies: [Currency] {
-        totals.keys.sorted { $0.code < $1.code }
+        Array(Set(summaries.flatMap(\.currencies))).sorted { $0.code < $1.code }
     }
 
-    /// Итоги текущего месяца по валютам. Пересчёт в основную валюту — отдельная задача (курсы НБ РБ).
-    func observeCurrentMonth() async {
-        guard let month = Calendar.current.dateInterval(of: .month, for: .now) else { return }
+    var currency: Currency {
+        if let selectedCurrency, currencies.contains(selectedCurrency) { return selectedCurrency }
+        if currencies.contains(.byn) { return .byn }
+        return currencies.first ?? .byn
+    }
+
+    var totals: IncomeExpense {
+        current?.incomeExpense(in: currency) ?? IncomeExpense(currency: currency)
+    }
+
+    /// Изменение расходов к прошлому месяцу.
+    var expenseChange: Double? {
+        guard let previous else { return nil }
+        return Totals.change(current: totals.expense, previous: previous.incomeExpense(in: currency).expense)
+    }
+
+    var slices: [ExpenseSlice] {
+        ExpenseBreakdown.slices(current?.expenses(in: currency) ?? [])
+    }
+
+    var history: [(month: Date, expense: Money)] {
+        summaries.map { ($0.interval.start, $0.incomeExpense(in: currency).expense) }
+    }
+
+    var isCurrentMonth: Bool {
+        calendar.isDate(month, equalTo: .now, toGranularity: .month)
+    }
+
+    func category(for slice: ExpenseSlice) -> FinanceCategory? {
+        slice.categoryID.flatMap { id in categories.first { $0.id == id } }
+    }
+
+    func shiftMonth(by value: Int) {
+        guard let shifted = calendar.date(byAdding: .month, value: value, to: month) else { return }
+        month = shifted
+    }
+
+    func observeSummaries() async {
+        let months = Totals.months(endingAt: month, count: Self.historyLength, calendar: calendar)
         do {
-            for try await items in repository.observeTransactions(TransactionQuery(interval: month)) {
-                totals = Totals.byCurrency(items)
+            for try await items in analytics.observeSummaries(months) {
+                summaries = items
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func observeCategories() async {
+        do {
+            for try await items in categoryRepository.observeCategories() {
+                categories = items
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -31,38 +94,176 @@ final class AnalyticsViewModel {
     }
 }
 
+/// Главный экран: расходы и доходы за месяц, траты по категориям и динамика за полгода.
 public struct AnalyticsScreen: View {
-    @State private var model: AnalyticsViewModel
+    @State private var model: OverviewViewModel
 
-    public init(transactions: any TransactionRepository) {
-        _model = State(initialValue: AnalyticsViewModel(repository: transactions))
+    public init(analytics: any AnalyticsRepository, categories: any CategoryRepository) {
+        _model = State(initialValue: OverviewViewModel(analytics: analytics, categories: categories))
     }
 
     public var body: some View {
         NavigationStack {
             List {
-                ForEach(model.currencies) { currency in
-                    if let totals = model.totals[currency] {
-                        Section(currency.code) {
-                            LabeledContent("Доходы") { MoneyText(totals.income) }
-                            LabeledContent("Расходы") { MoneyText(totals.expense.negated) }
-                            LabeledContent("Баланс") { MoneyText(totals.balance) }
+                Section {
+                    monthSwitcher
+                    if model.currencies.count > 1 {
+                        Picker("Валюта", selection: Binding(
+                            get: { model.currency },
+                            set: { model.selectedCurrency = $0 }
+                        )) {
+                            ForEach(model.currencies) { Text($0.code).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                }
+
+                Section {
+                    summary
+                }
+
+                if model.slices.isEmpty {
+                    Section {
+                        ContentUnavailableView(
+                            "Расходов нет",
+                            systemImage: "chart.pie",
+                            description: Text("Импортируйте выписку или добавьте операцию — здесь появятся траты по категориям")
+                        )
+                    }
+                } else {
+                    Section("По категориям") {
+                        donut
+                        ForEach(model.slices) { slice in
+                            SliceRow(slice: slice, category: model.category(for: slice))
                         }
                     }
                 }
-            }
-            .overlay {
-                if model.totals.isEmpty {
-                    ContentUnavailableView(
-                        "Нет данных за месяц",
-                        systemImage: "chart.pie",
-                        description: Text("Графики появятся, когда будут операции")
-                    )
+
+                if model.history.contains(where: { $0.expense.minorUnits > 0 }) {
+                    Section("Расходы по месяцам") {
+                        historyChart
+                    }
                 }
             }
-            .navigationTitle("Аналитика")
+            .navigationTitle("Обзор")
             .errorAlert($model.errorMessage)
-            .task { await model.observeCurrentMonth() }
+            .task(id: model.month) { await model.observeSummaries() }
+            .task { await model.observeCategories() }
         }
+    }
+
+    private var monthSwitcher: some View {
+        HStack {
+            Button("Предыдущий месяц", systemImage: "chevron.left") { model.shiftMonth(by: -1) }
+                .labelStyle(.iconOnly)
+            Spacer()
+            Text(model.month, format: .dateTime.month(.wide).year())
+                .font(.headline)
+            Spacer()
+            Button("Следующий месяц", systemImage: "chevron.right") { model.shiftMonth(by: 1) }
+                .labelStyle(.iconOnly)
+                .disabled(model.isCurrentMonth)
+        }
+        .buttonStyle(.borderless)
+    }
+
+    private var summary: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Расходы").font(.subheadline).foregroundStyle(.secondary)
+            Text(model.totals.expense.formatted())
+                .font(.largeTitle.bold())
+                .monospacedDigit()
+            if let change = model.expenseChange {
+                Text(change >= 0
+                    ? "на \(change.formatted(.percent.precision(.fractionLength(0)))) больше, чем месяцем раньше"
+                    : "на \((-change).formatted(.percent.precision(.fractionLength(0)))) меньше, чем месяцем раньше")
+                    .font(.footnote)
+                    .foregroundStyle(change > 0 ? Color.orange : Color.income)
+            }
+            Divider()
+            LabeledContent("Доходы") { MoneyText(model.totals.income) }
+            LabeledContent("Баланс") { MoneyText(model.totals.balance) }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var donut: some View {
+        Chart(model.slices) { slice in
+            SectorMark(
+                angle: .value("Сумма", slice.amount.chartValue),
+                innerRadius: .ratio(0.62),
+                angularInset: 1.5
+            )
+            .cornerRadius(3)
+            .foregroundStyle(SliceRow.color(for: slice, category: model.category(for: slice)))
+        }
+        .chartBackground { _ in
+            VStack(spacing: 2) {
+                Text("Всего").font(.caption).foregroundStyle(.secondary)
+                Text(model.totals.expense.formatted()).font(.headline).monospacedDigit()
+            }
+        }
+        .frame(height: 220)
+        .padding(.vertical, 8)
+        .accessibilityLabel("Расходы по категориям")
+    }
+
+    private var historyChart: some View {
+        Chart(model.history, id: \.month) { item in
+            BarMark(
+                x: .value("Месяц", item.month, unit: .month),
+                y: .value("Расходы", item.expense.chartValue)
+            )
+            .foregroundStyle(
+                Calendar.current.isDate(item.month, equalTo: model.month, toGranularity: .month)
+                    ? Color.accentColor : Color.accentColor.opacity(0.35)
+            )
+            .cornerRadius(4)
+        }
+        .chartXAxis {
+            AxisMarks(values: .stride(by: .month)) { _ in
+                AxisValueLabel(format: .dateTime.month(.abbreviated), centered: true)
+            }
+        }
+        .frame(height: 180)
+        .padding(.vertical, 8)
+    }
+}
+
+private struct SliceRow: View {
+    let slice: ExpenseSlice
+    let category: FinanceCategory?
+
+    static func color(for slice: ExpenseSlice, category: FinanceCategory?) -> Color {
+        if slice.isOther { return .gray.opacity(0.6) }
+        return category?.color ?? .gray
+    }
+
+    private var title: String {
+        if slice.isOther { return String(localized: "Остальное") }
+        return category?.displayName ?? String(localized: "Без категории")
+    }
+
+    var body: some View {
+        HStack {
+            Image(systemName: slice.isOther ? "ellipsis.circle" : category?.systemImage ?? "questionmark.circle")
+                .foregroundStyle(Self.color(for: slice, category: category))
+                .frame(width: 28)
+            Text(title)
+            Spacer()
+            VStack(alignment: .trailing) {
+                Text(slice.amount.formatted()).monospacedDigit()
+                Text(slice.share, format: .percent.precision(.fractionLength(0)))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+private extension Money {
+    /// Значение для осей Swift Charts. Только для отрисовки: суммы считаются в `minorUnits`.
+    var chartValue: Double {
+        NSDecimalNumber(decimal: decimalValue).doubleValue
     }
 }
