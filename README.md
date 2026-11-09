@@ -22,7 +22,7 @@ Packages/FinanceKit/        весь код приложения, модули S
   BankParsersBY             парсеры белорусских банков (ждут образцов выписок)
   Categorization            движок правил, «всегда так», встроенные правила (мерчанты Беларуси, MCC)
   ExchangeRates             курсы НБ РБ
-  Analytics                 итоги и агрегаты
+  Analytics                 итоги, стороны операций (возвраты), диаграммы расходов; агрегаты в SQL — Persistence
   DesignSystem              форматирование сумм, тема, общие компоненты
   Feature*                  экраны + view model (MVVM на @Observable)
   AppComposition            сборка зависимостей и корневой TabView

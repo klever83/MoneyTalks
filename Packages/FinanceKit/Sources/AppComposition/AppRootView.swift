@@ -18,6 +18,9 @@ public struct AppRootView: View {
 
     public var body: some View {
         TabView {
+            Tab("Обзор", systemImage: "chart.pie") {
+                AnalyticsScreen(analytics: dependencies.analytics, categories: dependencies.categories)
+            }
             Tab("Операции", systemImage: "list.bullet.rectangle") {
                 TransactionsScreen(
                     transactions: dependencies.transactions,
@@ -26,9 +29,6 @@ public struct AppRootView: View {
                     categorizer: dependencies.categorizer,
                     rules: dependencies.categoryRules
                 )
-            }
-            Tab("Аналитика", systemImage: "chart.pie") {
-                AnalyticsScreen(transactions: dependencies.transactions)
             }
             Tab("Импорт", systemImage: "square.and.arrow.down") {
                 ImportScreen(

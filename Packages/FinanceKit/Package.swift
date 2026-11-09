@@ -16,7 +16,7 @@ let package = Package(
         .target(name: "Domain"),
 
         // Сервисы и данные.
-        .target(name: "Persistence", dependencies: ["Domain", .product(name: "GRDB", package: "GRDB.swift")]),
+        .target(name: "Persistence", dependencies: ["Domain", "Analytics", .product(name: "GRDB", package: "GRDB.swift")]),
         .target(name: "StatementImport", dependencies: ["Domain"]),
         .target(name: "BankParsersBY", dependencies: ["Domain", "StatementImport"]),
         .target(name: "Categorization", dependencies: ["Domain"]),
@@ -44,7 +44,7 @@ let package = Package(
         ),
 
         .testTarget(name: "DomainTests", dependencies: ["Domain"]),
-        .testTarget(name: "PersistenceTests", dependencies: ["Persistence", "Categorization"]),
+        .testTarget(name: "PersistenceTests", dependencies: ["Persistence", "Categorization", "Analytics"]),
         .testTarget(name: "StatementImportTests", dependencies: ["StatementImport", "Domain", "Analytics"]),
         .testTarget(name: "BankParsersBYTests", dependencies: ["BankParsersBY", "StatementImport", "Domain"]),
         .testTarget(name: "CategorizationTests", dependencies: ["Categorization"]),

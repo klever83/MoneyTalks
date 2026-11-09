@@ -1,3 +1,4 @@
+import Analytics
 import BankParsersBY
 import Categorization
 import Domain
@@ -12,6 +13,7 @@ public struct Dependencies: Sendable {
     public let imports: any ImportRepository
     public let categoryRules: any CategoryRuleRepository
     public let categorizer: any TransactionCategorizer
+    public let analytics: any AnalyticsRepository
     public let parserRegistry: ParserRegistry
 
     init(database: AppDatabase) {
@@ -22,6 +24,7 @@ public struct Dependencies: Sendable {
         let rules = GRDBCategoryRuleRepository(database: database)
         categoryRules = rules
         categorizer = RuleBasedTransactionCategorizer(repository: rules, categories: categories)
+        analytics = GRDBAnalyticsRepository(database: database)
         parserRegistry = ParserRegistry(parsers: BankParsersBY.all)
     }
 
