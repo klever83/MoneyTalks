@@ -163,6 +163,11 @@ struct ImportPreviewView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
+                if plan.mayMissPeriod {
+                    Text("Между концом выписки и первой операцией счёта больше недели. Если за это время были операции, остаток сойдётся после импорта недостающего периода.")
+                        .font(.footnote)
+                        .foregroundStyle(.orange)
+                }
             }
 
             Section("Счёт") {

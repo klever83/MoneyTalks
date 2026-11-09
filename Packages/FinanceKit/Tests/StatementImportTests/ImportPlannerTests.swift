@@ -129,6 +129,18 @@ struct ImportPlannerTests {
             #expect(later.accountsToSave.contains { $0.id == account.id })
         }
 
+        // Операции начинаются через месяц после конца выписки: возможно, пропущен период.
+        #expect(plan(earliest: start.addingTimeInterval(30 * 86_400)).mayMissPeriod)
+        #expect(!plan(earliest: start.addingTimeInterval(3 * 86_400)).mayMissPeriod)
+        #expect(!plan(earliest: nil).mayMissPeriod)
+
+        // Только конечный остаток: начальный восстанавливается, как у нового счёта.
+        statement.openingBalance = nil
+        statement.closingBalance = Money(minorUnits: 38_450, currency: .byn)
+        #expect(plan(earliest: nil).account.openingBalance.minorUnits == 100_000)
+        statement.openingBalance = Money(minorUnits: 100_000, currency: .byn)
+        statement.closingBalance = nil
+
         // Есть операция раньше начала выписки: остаток не трогается.
         let earlier = plan(earliest: start.addingTimeInterval(-86_400))
         #expect(!earlier.updatesOpeningBalance)

@@ -41,6 +41,9 @@ public struct ImportPlan: Sendable {
     /// Начальный остаток существующего счёта заменяется остатком из выписки
     /// (выписка начинается не позже первой операции счёта).
     public var updatesOpeningBalance = false
+    /// Между концом выписки и первой операцией счёта больше `ImportPlanner.historyGap`:
+    /// возможно, пропущен период, и остаток сойдётся только после его импорта.
+    public var mayMissPeriod = false
 
     public var accountsToSave: [Account] { (isNewAccount || updatesOpeningBalance ? [account] : []) + newWallets }
     /// Новые операции; уже сохранённые обновляются точечно через `transferLinks`.
@@ -218,7 +221,9 @@ public enum ImportPlanner {
             updatedTransactions: updatedTransactions,
             duplicates: split.duplicates.count,
             links: links.sorted { $0.outgoing.bookedAt > $1.outgoing.bookedAt },
-            updatesOpeningBalance: updatesOpeningBalance
+            updatesOpeningBalance: updatesOpeningBalance,
+            mayMissPeriod: updatesOpeningBalance
+                && mayMissPeriod(statement: statement, earliestTransactionDate: earliestTransactionDate)
         )
     }
 
@@ -230,13 +235,24 @@ public enum ImportPlanner {
     static func updateOpeningBalance(
         of account: inout Account, from statement: ParsedStatement, earliestTransactionDate: Date?
     ) -> Bool {
-        guard let opening = statement.openingBalance, opening.currency == account.currency,
+        // Как у нового счёта: если банк дал только конечный остаток, начальный восстанавливается.
+        guard let opening = openingBalance(of: statement, currency: account.currency),
               let start = statement.period?.start ?? statement.rows.map(\.bookedAt).min(),
               opening != account.openingBalance
         else { return false }
         if let earliestTransactionDate, earliestTransactionDate < start { return false }
         account.openingBalance = opening
         return true
+    }
+
+    /// Сколько дней без операций между выписками ещё считаем обычной паузой, а не пропущенным периодом.
+    static let historyGap: TimeInterval = 7 * 86_400
+
+    static func mayMissPeriod(statement: ParsedStatement, earliestTransactionDate: Date?) -> Bool {
+        guard let earliestTransactionDate,
+              let end = statement.period?.end ?? statement.rows.map(\.bookedAt).max()
+        else { return false }
+        return earliestTransactionDate.timeIntervalSince(end) > historyGap
     }
 
     private static func lastDigits(_ text: String) -> String {
