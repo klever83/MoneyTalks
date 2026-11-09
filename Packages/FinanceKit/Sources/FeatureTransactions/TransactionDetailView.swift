@@ -196,7 +196,8 @@ struct TransactionDetailView: View {
     /// даже если она скрыта или другого типа.
     private func categories(isExpense: Bool, current: FinanceCategory.ID?) -> [(category: FinanceCategory, depth: Int)] {
         let kind: FinanceCategory.Kind = isExpense ? .expense : .income
-        return FinanceCategory.tree(model.categories.filter { ($0.kind == kind && !$0.isHidden) || $0.id == current })
+        let hidden = FinanceCategory.hiddenIDs(model.categories)
+        return FinanceCategory.tree(model.categories.filter { ($0.kind == kind && !hidden.contains($0.id)) || $0.id == current })
     }
 }
 

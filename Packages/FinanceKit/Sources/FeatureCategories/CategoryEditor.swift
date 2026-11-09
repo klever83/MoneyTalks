@@ -28,6 +28,8 @@ struct CategoryEditor: View {
     private let onSave: (FinanceCategory) async -> Bool
     private let onDeleteRule: (CategoryRule) async -> Void
     @State private var rules: [CategoryRule]
+    /// Смахнутые правила удаляются только по «Сохранить»: «Отмена» их возвращает.
+    @State private var removedRules: [CategoryRule] = []
     @State private var isSaving = false
 
     init(
@@ -82,14 +84,13 @@ struct CategoryEditor: View {
                             Text(rule.summary)
                         }
                         .onDelete { offsets in
-                            let removed = offsets.map { rules[$0] }
+                            removedRules += offsets.map { rules[$0] }
                             rules.remove(atOffsets: offsets)
-                            Task { for rule in removed { await onDeleteRule(rule) } }
                         }
                     } header: {
                         Text("Всегда так")
                     } footer: {
-                        Text("Операции этих мерчантов получают категорию автоматически. Смахните, чтобы удалить правило.")
+                        Text("Операции этих мерчантов получают категорию автоматически. Смахните, чтобы удалить правило: удаление применится при сохранении.")
                     }
                 }
 
@@ -149,6 +150,9 @@ struct CategoryEditor: View {
                         isSaving = true
                         Task {
                             let saved = await onSave(category)
+                            if saved {
+                                for rule in removedRules { await onDeleteRule(rule) }
+                            }
                             isSaving = false
                             if saved { dismiss() }
                         }

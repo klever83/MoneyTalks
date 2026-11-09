@@ -54,6 +54,19 @@ public struct FinanceCategory: Identifiable, Hashable, Codable, Sendable {
 
     public var isSystem: Bool { systemKey != nil }
 
+    /// Скрытые с учётом родителя: подкатегория скрытой категории тоже скрыта, иначе она всплывала бы
+    /// в пикерах на верхний уровень, а её правила продолжали бы работать.
+    public static func hiddenIDs(_ categories: [FinanceCategory]) -> Set<ID> {
+        let hidden = Set(categories.filter(\.isHidden).map(\.id))
+        return hidden.union(categories.filter { $0.parentID.map(hidden.contains) ?? false }.map(\.id))
+    }
+
+    /// Категории, которые можно предлагать при выборе и в автокатегоризации.
+    public static func visible(_ categories: [FinanceCategory]) -> [FinanceCategory] {
+        let hidden = hiddenIDs(categories)
+        return categories.filter { !hidden.contains($0.id) }
+    }
+
     /// Категории в порядке показа: родитель, за ним его подкатегории. `depth` 0 или 1.
     /// Подкатегория, чей родитель не в списке (удалён или другого типа), показывается на верхнем уровне.
     public static func tree(_ categories: [FinanceCategory]) -> [(category: FinanceCategory, depth: Int)] {
