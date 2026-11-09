@@ -22,7 +22,7 @@ public struct RuleBasedTransactionCategorizer: TransactionCategorizer {
         guard transactions.contains(where: Self.needsCategory) else { return transactions }
         var rules = try await repository.rules() + builtIn
         if let categories {
-            let available = Set(try await categories.categories().filter { !$0.isHidden }.map(\.id))
+            let available = Set(FinanceCategory.visible(try await categories.categories()).map(\.id))
             rules = rules.filter { available.contains($0.categoryID) }
         }
         return RuleCategorizer(rules: rules).apply(to: transactions)

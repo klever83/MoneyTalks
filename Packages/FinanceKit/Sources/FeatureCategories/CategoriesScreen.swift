@@ -50,6 +50,11 @@ final class CategoriesViewModel {
         return categories.filter { $0.kind == category.kind && $0.parentID == nil && $0.id != category.id }
     }
 
+    /// Скрытые категории вместе с подкатегориями скрытых: в списке они показываются приглушёнными.
+    var hiddenIDs: Set<FinanceCategory.ID> {
+        FinanceCategory.hiddenIDs(categories)
+    }
+
     func hasChildren(_ category: FinanceCategory) -> Bool {
         categories.contains { $0.parentID == category.id }
     }
@@ -173,12 +178,13 @@ public struct CategoriesScreen: View {
     }
 
     private func section(_ title: LocalizedStringKey, kind: FinanceCategory.Kind) -> some View {
-        Section(title) {
+        let hidden = model.hiddenIDs
+        return Section(title) {
             ForEach(model.tree(of: kind), id: \.category.id) { item in
                 Button {
                     editing = item.category
                 } label: {
-                    CategoryRow(category: item.category, depth: item.depth)
+                    CategoryRow(category: item.category, depth: item.depth, isHidden: hidden.contains(item.category.id))
                 }
                 .foregroundStyle(.primary)
                 .swipeActions {
@@ -203,13 +209,15 @@ public struct CategoriesScreen: View {
 private struct CategoryRow: View {
     let category: FinanceCategory
     let depth: Int
+    /// Скрыта сама или вместе со скрытым родителем.
+    let isHidden: Bool
 
     var body: some View {
         Label {
             HStack {
                 Text(category.displayName)
                 Spacer()
-                if category.isHidden {
+                if isHidden {
                     Image(systemName: "eye.slash")
                         .foregroundStyle(.secondary)
                         .accessibilityLabel("Скрыта")
@@ -220,6 +228,6 @@ private struct CategoryRow: View {
                 .foregroundStyle(category.color)
         }
         .padding(.leading, depth > 0 ? 24 : 0)
-        .opacity(category.isHidden ? 0.5 : 1)
+        .opacity(isHidden ? 0.5 : 1)
     }
 }

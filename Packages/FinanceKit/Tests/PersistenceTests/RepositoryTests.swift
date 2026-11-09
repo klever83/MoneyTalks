@@ -210,4 +210,32 @@ struct RepositoryTests {
         }
         #expect(names == ["Карта"])
     }
+
+    @Test("Остаток: начальный плюс неудалённые операции в валюте счёта, удалённые счета не входят")
+    func balances() async throws {
+        let card = Account(name: "Карта", kind: .card, currency: .byn, openingBalance: Money(minorUnits: 10_000, currency: .byn))
+        let empty = Account(name: "Пустой", kind: .current, currency: .usd)
+        let gone = Account(name: "Удалённый", kind: .cash, currency: .byn)
+        for account in [card, empty, gone] { try await accounts.save(account) }
+        func transaction(_ minorUnits: Int64, _ currency: Currency = .byn, on accountID: Account.ID? = nil) -> FinanceTransaction {
+            FinanceTransaction(
+                accountID: accountID ?? card.id, bookedAt: Date(timeIntervalSince1970: 1_000),
+                amount: Money(minorUnits: minorUnits, currency: currency), merchantRaw: "A", source: .manual
+            )
+        }
+        let deleted = transaction(-5_000)
+        try await transactions.save([transaction(-2_500), transaction(1_000), deleted, transaction(-700, .usd), transaction(300, on: gone.id)])
+        try await transactions.delete(deleted.id)
+        try await accounts.delete(gone.id)
+
+        var balances: [Account.ID: Money] = [:]
+        for try await value in accounts.observeBalances() {
+            balances = value
+            break
+        }
+        #expect(balances == [
+            card.id: Money(minorUnits: 8_500, currency: .byn),
+            empty.id: .zero(.usd),
+        ])
+    }
 }

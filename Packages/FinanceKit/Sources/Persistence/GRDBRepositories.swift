@@ -40,6 +40,29 @@ public struct GRDBAccountRepository: AccountRepository {
         }
     }
 
+    public func observeBalances() -> AsyncThrowingStream<[Account.ID: Money], any Error> {
+        database.stream(ValueObservation.tracking { db in
+            // Операции в другой валюте (если такие попадут на счёт) в остаток не входят:
+            // складывать разные валюты без курса нельзя.
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT a.id, a.currencyCode, a.currencyDigits,
+                       a.openingBalanceMinor + COALESCE(SUM(t.amountMinor), 0) AS balanceMinor
+                FROM accounts a
+                LEFT JOIN transactions t
+                    ON t.accountID = a.id AND t.deletedAt IS NULL AND t.currencyCode = a.currencyCode
+                WHERE a.deletedAt IS NULL
+                GROUP BY a.id
+                """)
+            var balances: [Account.ID: Money] = [:]
+            for row in rows {
+                let id: UUID = row["id"]
+                let currency = Currency(code: row["currencyCode"], minorUnitDigits: row["currencyDigits"])
+                balances[Account.ID(id)] = Money(minorUnits: row["balanceMinor"], currency: currency)
+            }
+            return balances
+        })
+    }
+
     public func delete(_ id: Account.ID) async throws {
         let now = Date.now
         try await database.writer.write { db in
