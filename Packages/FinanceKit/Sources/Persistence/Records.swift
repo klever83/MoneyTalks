@@ -220,3 +220,53 @@ struct CategoryRuleRecord: Codable, FetchableRecord, PersistableRecord, Sendable
         )
     }
 }
+
+struct ImportBatchRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
+    static let databaseTableName = "importBatches"
+
+    var id: UUID
+    var accountID: UUID
+    var bankName: String
+    var fileName: String
+    var fileHash: String?
+    var periodStart: Date?
+    var periodEnd: Date?
+    var importedAt: Date
+    var transactionCount: Int
+    var duplicateCount: Int
+    var previousOpeningBalanceMinor: Int64?
+    var rolledBackAt: Date?
+
+    init(_ batch: ImportBatch) {
+        id = batch.id
+        accountID = batch.accountID.rawValue
+        bankName = batch.bankName
+        fileName = batch.fileName
+        fileHash = batch.fileHash
+        periodStart = batch.period?.start
+        periodEnd = batch.period?.end
+        importedAt = batch.importedAt
+        transactionCount = batch.transactionCount
+        duplicateCount = batch.duplicateCount
+        previousOpeningBalanceMinor = batch.previousOpeningBalanceMinor
+        rolledBackAt = batch.rolledBackAt
+    }
+
+    var domain: ImportBatch {
+        ImportBatch(
+            id: id,
+            accountID: Account.ID(accountID),
+            bankName: bankName,
+            fileName: fileName,
+            fileHash: fileHash,
+            period: periodStart.flatMap { start in
+                periodEnd.flatMap { end in end >= start ? DateInterval(start: start, end: end) : nil }
+            },
+            importedAt: importedAt,
+            transactionCount: transactionCount,
+            duplicateCount: duplicateCount,
+            previousOpeningBalanceMinor: previousOpeningBalanceMinor,
+            rolledBackAt: rolledBackAt
+        )
+    }
+}

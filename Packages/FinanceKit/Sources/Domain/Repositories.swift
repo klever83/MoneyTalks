@@ -86,12 +86,29 @@ public enum ImportCommitError: Error, Equatable, Sendable {
 }
 
 public protocol ImportRepository: Sendable {
-    /// Сохраняет результат импорта одной транзакцией базы: новые счета и операции, а у уже
+    /// Сохраняет результат импорта одной транзакцией базы: партию, новые счета и операции, а у уже
     /// сохранённых операций точечно отмечает перевод (только тип, пару и категорию, остальное
     /// не трогается). Если такая операция за это время удалена, уже связана или пользователь
     /// закрепил её категорию, бросает
     /// `ImportCommitError.transactionChanged`, и не сохраняется ничего.
-    func commitImport(accounts: [Account], transactions: [FinanceTransaction], links: [TransferLink]) async throws
+    func commitImport(
+        batch: ImportBatch?, accounts: [Account], transactions: [FinanceTransaction], links: [TransferLink]
+    ) async throws
+    /// Неоткаченные партии, новые сверху.
+    func observeBatches() -> AsyncThrowingStream<[ImportBatch], any Error>
+    /// Неоткаченная партия с тем же файлом, если он уже импортирован.
+    func batch(fileHash: String) async throws -> ImportBatch?
+    /// Откатывает партию одной транзакцией базы. Её операции удаляются и перестают учитываться
+    /// при дедупликации, поэтому выписку можно загрузить заново. Операции других выписок,
+    /// связанные с ней переводом, снова становятся расходом или доходом. Если импорт заменил
+    /// начальный остаток счёта, возвращается прежний.
+    func rollback(_ batchID: UUID) async throws
+}
+
+public extension ImportRepository {
+    func commitImport(accounts: [Account], transactions: [FinanceTransaction], links: [TransferLink]) async throws {
+        try await commitImport(batch: nil, accounts: accounts, transactions: transactions, links: links)
+    }
 }
 
 public extension AccountRepository {

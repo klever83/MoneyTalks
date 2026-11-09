@@ -41,6 +41,8 @@ public struct ImportPlan: Sendable {
     /// Начальный остаток существующего счёта заменяется остатком из выписки
     /// (выписка начинается не позже первой операции счёта).
     public var updatesOpeningBalance = false
+    /// Начальный остаток счёта до замены: партия хранит его, чтобы откат импорта вернул прежний.
+    public var previousOpeningBalance: Money?
     /// Между концом выписки и первой операцией счёта больше `ImportPlanner.historyGap`:
     /// возможно, пропущен период, и остаток сойдётся только после его импорта.
     public var mayMissPeriod = false
@@ -125,6 +127,7 @@ public enum ImportPlanner {
         now: Date = .now
     ) -> ImportPlan {
         var account = account
+        let originalOpeningBalance = account.openingBalance
         var updatesOpeningBalance = false
         if !isNewAccount {
             updatesOpeningBalance = updateOpeningBalance(
@@ -222,6 +225,7 @@ public enum ImportPlanner {
             duplicates: split.duplicates.count,
             links: links.sorted { $0.outgoing.bookedAt > $1.outgoing.bookedAt },
             updatesOpeningBalance: updatesOpeningBalance,
+            previousOpeningBalance: updatesOpeningBalance ? originalOpeningBalance : nil,
             mayMissPeriod: updatesOpeningBalance
                 && mayMissPeriod(statement: statement, earliestTransactionDate: earliestTransactionDate)
         )

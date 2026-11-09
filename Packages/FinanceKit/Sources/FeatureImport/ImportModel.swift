@@ -1,3 +1,4 @@
+import CryptoKit
 import Domain
 import Foundation
 import StatementImport
@@ -36,6 +37,12 @@ final class ImportModel {
     private(set) var target: Target = .new
     /// Идёт пересчёт превью: подтверждать нельзя, план ещё старый.
     private(set) var isPlanning = false
+    /// Прошлые импорты, новые сверху: их можно откатить.
+    private(set) var batches: [ImportBatch] = []
+    /// Этот же файл уже импортирован: превью предупреждает.
+    private(set) var alreadyImported: ImportBatch?
+    var errorMessage: String?
+    private var fileHash: String?
     private var generation = 0
     private var document: StatementDocument?
     private var statement: ParsedStatement?
@@ -69,6 +76,29 @@ final class ImportModel {
         return accounts.filter { $0.kind != .cash && $0.currency == currency }
     }
 
+    func observeBatches() async {
+        do {
+            for try await items in importRepository.observeBatches() {
+                batches = items
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Откат импорта целиком (см. `ImportRepository.rollback`).
+    func rollback(_ batch: ImportBatch) async {
+        do {
+            try await importRepository.rollback(batch.id)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func accountName(for batch: ImportBatch) -> String {
+        accounts.first { $0.id == batch.accountID }?.name ?? batch.bankName
+    }
+
     func observeAccounts() async {
         do {
             for try await items in accountRepository.observeAccounts() {
@@ -87,12 +117,16 @@ final class ImportModel {
         fileName = url.lastPathComponent
         do {
             let name = fileName
-            let document = try await Task.detached(priority: .userInitiated) {
+            let (document, hash) = try await Task.detached(priority: .userInitiated) {
                 let access = url.startAccessingSecurityScopedResource()
                 defer { if access { url.stopAccessingSecurityScopedResource() } }
-                return try Self.readDocument(Data(contentsOf: url), fileName: name)
+                let data = try Data(contentsOf: url)
+                return (try Self.readDocument(data, fileName: name), Self.fileHash(data))
             }.value
             self.document = document
+            fileHash = hash
+            // Предупреждение, а не запрет: повторные строки всё равно отсеет дедупликация.
+            alreadyImported = try? await importRepository.batch(fileHash: hash)
             if let parser = registry.bestMatch(for: document) {
                 await parse(with: parser)
             } else {
@@ -127,8 +161,21 @@ final class ImportModel {
     func confirm() async {
         guard let plan, !isPlanning else { return }
         phase = .working
+        let rows = plan.statement.rows.map(\.bookedAt)
+        let batch = ImportBatch(
+            id: plan.batchID,
+            accountID: plan.account.id,
+            bankName: plan.bank.name,
+            fileName: fileName,
+            fileHash: fileHash,
+            period: plan.statement.period ?? rows.min().flatMap { first in rows.max().map { DateInterval(start: first, end: $0) } },
+            transactionCount: plan.newTransactions.count,
+            duplicateCount: plan.duplicates,
+            previousOpeningBalanceMinor: plan.previousOpeningBalance?.minorUnits
+        )
         do {
             try await importRepository.commitImport(
+                batch: batch,
                 accounts: plan.accountsToSave,
                 transactions: plan.transactionsToSave,
                 links: plan.transferLinks
@@ -149,6 +196,8 @@ final class ImportModel {
         bankOptions = []
         excluded = []
         target = .new
+        fileHash = nil
+        alreadyImported = nil
         batchID = UUID()
         generation += 1
         isPlanning = false
@@ -233,6 +282,11 @@ final class ImportModel {
             guard current == generation else { return }
             phase = .failed(error.localizedDescription)
         }
+    }
+
+    /// SHA-256 файла в hex: по нему распознаётся повторная загрузка того же файла.
+    nonisolated static func fileHash(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 
     nonisolated static func readDocument(_ data: Data, fileName: String) throws -> StatementDocument {
