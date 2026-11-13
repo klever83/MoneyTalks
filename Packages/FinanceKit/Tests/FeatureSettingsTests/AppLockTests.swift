@@ -117,4 +117,25 @@ struct AppLockTests {
         #expect(await lock.setEnabled(false))
         #expect(!lock.isEnabled && !defaults.bool(forKey: SettingsKey.appLockEnabled))
     }
+
+    @Test("Код-пароль убран при включённой блокировке: приложение не запирается навсегда")
+    func passcodeRemoved() async {
+        defaults.set(true, forKey: SettingsKey.appLockEnabled)
+        let authenticator = FakeAuthenticator(results: [], method: .unavailable)
+        let lock = AppLock(authenticator: authenticator, defaults: defaults)
+        #expect(lock.isLocked)
+        await lock.unlock()
+        #expect(!lock.isLocked && authenticator.requests == 0)
+    }
+
+    @Test("Холодный запуск в неактивной сцене: Face ID запрашивается на первом переходе в активную")
+    func coldLaunchInactive() async {
+        defaults.set(true, forKey: SettingsKey.appLockEnabled)
+        let lock = AppLock(authenticator: FakeAuthenticator(results: [false]), defaults: defaults)
+        #expect(lock.sceneDidChange(to: .active))
+        // Отменили: повторного автоматического запроса нет.
+        await lock.unlock()
+        _ = lock.sceneDidChange(to: .inactive)
+        #expect(lock.sceneDidChange(to: .active) == false)
+    }
 }

@@ -25,7 +25,8 @@ public enum DeviceAuthMethod: Sendable, Equatable {
 /// Подтверждение владельца устройства.
 public protocol DeviceAuthenticator: Sendable {
     func method() -> DeviceAuthMethod
-    /// `true`, если владелец подтвердил. Биометрия с откатом на код-пароль: заблокировать себя нельзя.
+    /// `true`, если владелец подтвердил. Биометрия с откатом на код-пароль.
+    /// Если с устройства убран код-пароль, подтверждать нечем: `AppLock` тогда не запирает.
     func authenticate(reason: String) async -> Bool
 }
 
@@ -77,8 +78,10 @@ public final class AppLock {
         self.defaults = defaults
         let enabled = defaults.bool(forKey: SettingsKey.appLockEnabled)
         isEnabled = enabled
-        // При запуске с включённой блокировкой приложение сразу заперто.
+        // При запуске с включённой блокировкой приложение сразу заперто, а Face ID запрашивается
+        // на первом `.active`: в ещё неактивной сцене запрос может сразу завершиться ошибкой.
         isLocked = enabled
+        returnsFromBackground = enabled
     }
 
     public var method: DeviceAuthMethod { authenticator.method() }
@@ -109,6 +112,14 @@ public final class AppLock {
 
     public func unlock() async {
         guard isLocked, !isAuthenticating else { return }
+        // Запрос уже идёт: отмена окна Face ID не должна вызвать ещё один автоматический.
+        returnsFromBackground = false
+        // Код-пароль с устройства убран: подтвердить владельца нечем, а само устройство открыто.
+        // Иначе приложение заперлось бы навсегда вместе с переключателем в Настройках.
+        if authenticator.method() == .unavailable {
+            isLocked = false
+            return
+        }
         isAuthenticating = true
         defer { isAuthenticating = false }
         if await authenticator.authenticate(reason: String(localized: "Разблокировать MoneyTalks")) {
@@ -188,8 +199,11 @@ private struct AppLockModifier: ViewModifier {
                 }
             }
             .task {
-                // Холодный запуск: сцена сразу активна, onChange не сработает.
-                await lock.unlock()
+                // Холодный запуск в уже активной сцене: onChange не сработает. Если сцена ещё
+                // неактивна, разблокировку запросит первый переход в `.active`.
+                if scenePhase == .active {
+                    await lock.unlock()
+                }
             }
     }
 }
