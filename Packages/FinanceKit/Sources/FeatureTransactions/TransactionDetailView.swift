@@ -105,6 +105,10 @@ struct TransactionDetailView: View {
                 if let original = transaction.originalAmount {
                     LabeledContent("В валюте покупки") { MoneyText(original) }
                 }
+            } footer: {
+                if transaction.isPending {
+                    Text("Операция в обработке у банка. Когда она проведётся, следующая выписка заменит её проведённой.")
+                }
             }
 
             Section {

@@ -65,6 +65,8 @@ public struct ParsedRow: Hashable, Sendable {
     public var mcc: Int?
     /// Идентификатор операции в банке, если выписка его содержит.
     public var bankReference: String?
+    /// Банк ещё не провёл операцию (холд): сумма при проведении может измениться.
+    public var isPending: Bool
 
     public init(
         bookedAt: Date,
@@ -72,7 +74,8 @@ public struct ParsedRow: Hashable, Sendable {
         originalAmount: Money? = nil,
         description: String,
         mcc: Int? = nil,
-        bankReference: String? = nil
+        bankReference: String? = nil,
+        isPending: Bool = false
     ) {
         self.bookedAt = bookedAt
         self.amount = amount
@@ -80,6 +83,7 @@ public struct ParsedRow: Hashable, Sendable {
         self.description = description
         self.mcc = mcc
         self.bankReference = bankReference
+        self.isPending = isPending
     }
 }
 

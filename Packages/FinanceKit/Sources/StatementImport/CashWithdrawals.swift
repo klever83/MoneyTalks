@@ -65,7 +65,9 @@ public enum CashWithdrawals {
     ) -> (transactions: [FinanceTransaction], walletTransactions: [FinanceTransaction]) {
         var created: [FinanceTransaction] = []
         let updated = transactions.map { transaction -> FinanceTransaction in
+            // Холд не трогаем: кошелёк получит вторую сторону, когда операция проведётся.
             guard transaction.deletedAt == nil,
+                  !transaction.isPending,
                   transaction.transferPairID == nil,
                   transaction.kind != .transfer,
                   !transaction.categoryLocked,

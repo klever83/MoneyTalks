@@ -262,8 +262,17 @@ struct ImportPreviewView: View {
 
             Section("Итог") {
                 LabeledContent("Новых операций", value: plan.newTransactions.count, format: .number)
+                if plan.newHoldCount > 0 {
+                    LabeledContent("Из них в обработке", value: plan.newHoldCount, format: .number)
+                }
                 if plan.duplicates > 0 {
                     LabeledContent("Уже импортированы раньше", value: plan.duplicates, format: .number)
+                }
+                if !plan.replacedHolds.isEmpty {
+                    LabeledContent("Проведены операции в обработке", value: plan.replacedHolds.count, format: .number)
+                }
+                if !plan.cancelledHolds.isEmpty {
+                    LabeledContent("Отменены банком из обработки", value: plan.cancelledHolds.count, format: .number)
                 }
                 let transfers = plan.links.filter { $0.kind == .transfer && !$0.isExcluded }.count
                 if transfers > 0 {

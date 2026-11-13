@@ -131,6 +131,16 @@ extension AppDatabase {
             }
         }
 
+        migrator.registerMigration("v6-pending-transactions") { db in
+            try db.alter(table: "transactions") { t in
+                t.add(column: "isPending", .boolean).notNull().defaults(to: false)
+                // Партия, импорт которой заменил холд проведённой операцией или снял отменённый:
+                // откат этой партии возвращает холд. В модели не хранится, меняется только точечно.
+                t.add(column: "supersededByBatchID", .blob)
+            }
+            try db.create(index: "transactions_superseded_batch", on: "transactions", columns: ["supersededByBatchID"])
+        }
+
         return migrator
     }
 }

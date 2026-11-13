@@ -10,9 +10,9 @@ import StatementImport
 /// город, MCC. Ячейки многострочные и выровнены по верху, суммы со знаком через пробел: `- 11.45 BYN`.
 ///
 /// В выписку попадают и операции, которые банк ещё не обработал («В обработке» вместо даты
-/// отображения). Как и заблокированные суммы Приорбанка, они не импортируются: сумма при проведении
-/// может измениться, и тогда получился бы дубль. Но остаток на конец периода их уже учитывает,
-/// поэтому в сверке с остатком они участвуют.
+/// отображения). Остаток на конец периода их уже учитывает, поэтому они импортируются холдами
+/// (`ParsedRow.isPending`): остаток счёта совпадает с банковским, а проведённая операция из
+/// следующей выписки заменит холд (`HoldMatcher`).
 public struct BNBBankParser: StatementParser {
     public let id: ParserID = "by.bnb.pdf"
     public let bank = BankParsersBY.bnb
@@ -77,7 +77,7 @@ public struct BNBBankParser: StatementParser {
 
         var rows: [ParsedRow] = []
         var warnings: [ParseWarning] = []
-        var pending: [Money] = []
+        var pendingCount = 0
         for (index, cells) in table.enumerated() {
             guard let bookedAt = BYDate.dateTime(cells[1]),
                   let amount = Self.money(cells[5]), amount.currency == accountCurrency
@@ -87,10 +87,8 @@ public struct BNBBankParser: StatementParser {
             }
             // Начисления по нулям (капитализация без процентов) в выписке есть, но это не операции.
             guard amount.minorUnits != 0 else { continue }
-            if cells[0].hasPrefix("В обработке") {
-                pending.append(amount)
-                continue
-            }
+            let isPending = cells[0].hasPrefix("В обработке")
+            if isPending { pendingCount += 1 }
 
             let type = cells[2]
             let details = cells[3] == "-" ? "" : cells[3]
@@ -107,12 +105,16 @@ public struct BNBBankParser: StatementParser {
                 amount: amount,
                 originalAmount: original,
                 description: description,
-                mcc: Int(cells[8])
+                mcc: Int(cells[8]),
+                isPending: isPending
             ))
         }
 
-        if !pending.isEmpty {
-            warnings.append(BankParsersBY.pendingWarning("Операции в обработке", count: pending.count, periodEnd: period?.end))
+        if pendingCount > 0 {
+            warnings.append(ParseWarning(
+                line: nil,
+                message: "Операции в обработке (\(pendingCount)) импортированы с отметкой: после проведения их заменят операции следующей выписки"
+            ))
         }
         if layout.uncertainWords > 0 {
             warnings.append(ParseWarning(
@@ -122,7 +124,6 @@ public struct BNBBankParser: StatementParser {
         }
         if let opening, let closing {
             let total = rows.map(\.amount).reduce(opening) { $0 + $1.decimalValue }
-                + pending.reduce(Decimal(0)) { $0 + $1.decimalValue }
             if total != closing {
                 warnings.append(ParseWarning(
                     line: nil,

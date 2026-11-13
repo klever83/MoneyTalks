@@ -143,4 +143,59 @@ struct ImportBatchTests {
         // Повторная загрузка того же файла после удаления счёта — не повтор.
         #expect(try await imports.batch(fileHash: "a") == nil)
     }
+
+    @Test("Импорт снимает заменённый холд, откат его возвращает; холд откаченной выписки не воскресает")
+    func supersededHolds() async throws {
+        let card = Account(name: "Карта", kind: .card, currency: .byn)
+        try await accounts.save(card)
+        func batch(_ id: UUID) -> ImportBatch {
+            ImportBatch(id: id, accountID: card.id, bankName: "БНБ", fileName: "\(id).pdf", transactionCount: 1)
+        }
+        let first = UUID()
+        let hold = FinanceTransaction(
+            accountID: card.id, bookedAt: Date(timeIntervalSince1970: 1_000),
+            amount: Money(minorUnits: -441, currency: .byn), merchantRaw: "SHOP",
+            source: .imported, importBatchID: first, fingerprint: "ph:1", isPending: true
+        )
+        try await imports.commitImport(batch: batch(first), accounts: [], transactions: [hold], links: [])
+        // Холд входит в остаток, как и в банковский.
+        #expect(try await firstValue(accounts.observeBalances())?[card.id] == Money(minorUnits: -441, currency: .byn))
+        #expect(try await transactions.transactions(TransactionQuery(accountID: card.id)).first?.isPending == true)
+
+        let second = UUID()
+        let posted = FinanceTransaction(
+            accountID: card.id, bookedAt: Date(timeIntervalSince1970: 90_000),
+            amount: Money(minorUnits: -441, currency: .byn), merchantRaw: "SHOP",
+            source: .imported, importBatchID: second, fingerprint: "h:1"
+        )
+        try await imports.commitImport(
+            batch: batch(second), accounts: [], transactions: [posted], links: [], supersededHolds: [hold.id]
+        )
+        #expect(try await transactions.transactions(TransactionQuery(accountID: card.id)).map(\.id) == [posted.id])
+        #expect(try await firstValue(accounts.observeBalances())?[card.id] == Money(minorUnits: -441, currency: .byn))
+        // Отпечаток холда остаётся: повтор первой выписки его не вернёт.
+        #expect(try await transactions.fingerprints(accountID: card.id) == ["ph:1", "h:1"])
+
+        // Холд уже снят: второй такой импорт не проходит целиком.
+        let third = UUID()
+        await #expect(throws: ImportCommitError.transactionChanged) {
+            try await imports.commitImport(
+                batch: batch(third), accounts: [], transactions: [], links: [], supersededHolds: [hold.id]
+            )
+        }
+        #expect(try await firstValue(imports.observeBatches())?.contains { $0.id == third } == false)
+
+        try await imports.rollback(second)
+        let restored = try await transactions.transactions(TransactionQuery(accountID: card.id))
+        #expect(restored.map(\.id) == [hold.id] && restored.first?.isPending == true)
+
+        // Снова провели, затем откатили первую выписку и только потом вторую: холд не возвращается.
+        let fourth = UUID()
+        try await imports.commitImport(
+            batch: batch(fourth), accounts: [], transactions: [], links: [], supersededHolds: [hold.id]
+        )
+        try await imports.rollback(first)
+        try await imports.rollback(fourth)
+        #expect(try await transactions.transactions(TransactionQuery(accountID: card.id)).isEmpty)
+    }
 }

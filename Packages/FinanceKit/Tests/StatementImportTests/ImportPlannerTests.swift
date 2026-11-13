@@ -197,4 +197,55 @@ struct ImportPlannerTests {
         #expect(plan.newWallets.isEmpty)
         #expect(plan.walletTransactions.first?.accountID == wallet.id)
     }
+
+    @Test("Холд: свой отпечаток, без наличных; проведённая строка заменяет сохранённый холд с его категорией")
+    func holds() throws {
+        let card = Account(name: "Карта", kind: .card, currency: .byn, bankID: "by.test")
+        let atm = ParsedRow(
+            bookedAt: start, amount: Money(minorUnits: -10_000, currency: .byn),
+            description: "ATM BLR MINSK ATM 1", isPending: true
+        )
+        var posted = atm
+        posted.isPending = false
+        #expect(ImportDeduplicator.fingerprint(for: atm, accountID: card.id, occurrence: 0)
+            == "p" + ImportDeduplicator.fingerprint(for: posted, accountID: card.id, occurrence: 0))
+
+        func plan(_ rows: [ParsedRow], saved: [FinanceTransaction] = []) -> ImportPlan {
+            ImportPlanner.plan(
+                statement: ParsedStatement(accountHint: AccountHint(currency: .byn), rows: rows),
+                bank: bank, account: card, isNewAccount: false,
+                existingFingerprints: Set(saved.compactMap(\.fingerprint)), existingAccounts: [card],
+                earliestTransactionDate: saved.map(\.bookedAt).min(),
+                recentTransactions: saved, accountTransactions: saved, walletName: "Наличные"
+            )
+        }
+
+        // Снятие в обработке остаётся расходом счёта: кошелёк получит сторону после проведения.
+        let first = plan([atm])
+        #expect(first.newTransactions.map(\.isPending) == [true])
+        #expect(first.newTransactions.first?.kind == .expense)
+        #expect(first.walletTransactions.isEmpty && first.links.isEmpty)
+        #expect(first.newHoldCount == 1)
+
+        var hold = first.newTransactions[0]
+        let groceries = FinanceCategory.ID()
+        hold.categoryID = groceries
+        hold.categoryLocked = true
+        hold.note = "в долг"
+        let second = plan([posted], saved: [hold])
+        #expect(second.replacedHolds.map(\.id) == [hold.id])
+        #expect(second.supersededHolds == [hold.id])
+        let replacement = try #require(second.newTransactions.first)
+        #expect(!replacement.isPending)
+        // Категорию выбрал пользователь: она переходит, и наличными операция не становится.
+        #expect(replacement.categoryID == groceries && replacement.categoryLocked)
+        #expect(replacement.note == "в долг")
+        #expect(second.walletTransactions.isEmpty)
+
+        // Повтор первой выписки, когда операция уже проведена: холд не возвращается.
+        var savedPosted = second.newTransactions[0]
+        savedPosted.fingerprint = ImportDeduplicator.fingerprint(for: posted, accountID: card.id, occurrence: 0)
+        let repeated = plan([atm], saved: [savedPosted])
+        #expect(repeated.newTransactions.isEmpty && repeated.duplicates == 1)
+    }
 }

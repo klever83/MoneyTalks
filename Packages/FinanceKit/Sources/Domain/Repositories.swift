@@ -91,8 +91,14 @@ public protocol ImportRepository: Sendable {
     /// не трогается). Если такая операция за это время удалена, уже связана или пользователь
     /// закрепил её категорию, бросает
     /// `ImportCommitError.transactionChanged`, и не сохраняется ничего.
+    /// Холды из `supersededHolds` (проведённые или отменённые банком) удаляются; если какой-то
+    /// из них уже удалён или проведён, тоже `ImportCommitError.transactionChanged`.
     func commitImport(
-        batch: ImportBatch?, accounts: [Account], transactions: [FinanceTransaction], links: [TransferLink]
+        batch: ImportBatch?,
+        accounts: [Account],
+        transactions: [FinanceTransaction],
+        links: [TransferLink],
+        supersededHolds: [FinanceTransaction.ID]
     ) async throws
     /// Неоткаченные партии, новые сверху.
     func observeBatches() -> AsyncThrowingStream<[ImportBatch], any Error>
@@ -103,6 +109,7 @@ public protocol ImportRepository: Sendable {
     /// удалённых пользователем вручную до отката: после повторной загрузки они вернутся.
     /// Операции других выписок, связанные с ней переводом, снова становятся расходом или доходом.
     /// Если импорт заменил начальный остаток счёта и остаток с тех пор не менялся, возвращается прежний.
+    /// Холды, которые удалил импорт, возвращаются.
     /// - Returns: операции других выписок, с которых снят перевод. Категорию при связи они потеряли,
     ///   и её стоит проставить заново по правилам.
     @discardableResult
@@ -111,7 +118,13 @@ public protocol ImportRepository: Sendable {
 
 public extension ImportRepository {
     func commitImport(accounts: [Account], transactions: [FinanceTransaction], links: [TransferLink]) async throws {
-        try await commitImport(batch: nil, accounts: accounts, transactions: transactions, links: links)
+        try await commitImport(batch: nil, accounts: accounts, transactions: transactions, links: links, supersededHolds: [])
+    }
+
+    func commitImport(
+        batch: ImportBatch?, accounts: [Account], transactions: [FinanceTransaction], links: [TransferLink]
+    ) async throws {
+        try await commitImport(batch: batch, accounts: accounts, transactions: transactions, links: links, supersededHolds: [])
     }
 }
 

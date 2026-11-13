@@ -35,7 +35,7 @@ public struct ImportPlan: Sendable {
             transaction.transferPairID.map { TransferLink(transactionID: transaction.id, pairID: $0) }
         }
     }
-    /// Строки, которые уже импортированы раньше.
+    /// Строки, которые уже импортированы раньше (и холды, уже сохранённые проведёнными).
     public var duplicates: Int
     public var links: [ImportLink]
     /// Начальный остаток существующего счёта заменяется остатком из выписки
@@ -46,6 +46,14 @@ public struct ImportPlan: Sendable {
     /// Между концом выписки и первой операцией счёта больше `ImportPlanner.historyGap`:
     /// возможно, пропущен период, и остаток сойдётся только после его импорта.
     public var mayMissPeriod = false
+    /// Сохранённые холды, которые эта выписка принесла проведёнными: они удаляются.
+    public var replacedHolds: [FinanceTransaction] = []
+    /// Сохранённые холды, отменённые банком (см. `HoldMatcher.expiry`): они удаляются.
+    public var cancelledHolds: [FinanceTransaction] = []
+    /// Холды новых строк выписки.
+    public var newHoldCount: Int { newTransactions.filter(\.isPending).count }
+    /// Холды, которые удаляет импорт: откат партии их вернёт.
+    public var supersededHolds: [FinanceTransaction.ID] { (replacedHolds + cancelledHolds).map(\.id) }
 
     public var accountsToSave: [Account] { (isNewAccount || updatesOpeningBalance ? [account] : []) + newWallets }
     /// Новые операции; уже сохранённые обновляются точечно через `transferLinks`.
@@ -109,6 +117,8 @@ public enum ImportPlanner {
     ///   - deletedAccountIDs: удалённые счета: их идентификаторы новым кошелькам не достаются.
     ///   - recentTransactions: сохранённые операции всех счетов за период выписки с запасом
     ///     в окно поиска переводов: с ними ищутся пары для новых строк.
+    ///   - accountTransactions: сохранённые операции выбранного счёта за период выписки с запасом
+    ///     `HoldMatcher.window`: среди них холды, которые выписка может провести или отменить.
     ///   - walletName: имя для нового кошелька наличных (локализованное).
     ///   - excludedLinks: связи, которые пользователь снял в превью.
     public static func plan(
@@ -121,6 +131,7 @@ public enum ImportPlanner {
         earliestTransactionDate: Date?,
         deletedAccountIDs: Set<Account.ID> = [],
         recentTransactions: [FinanceTransaction],
+        accountTransactions: [FinanceTransaction] = [],
         walletName: String,
         excludedLinks: Set<UUID> = [],
         batchID: UUID = UUID(),
@@ -135,7 +146,7 @@ public enum ImportPlanner {
             )
         }
         let split = ImportDeduplicator.split(statement.rows, accountID: account.id, existing: existingFingerprints)
-        let imported = split.new.map { row, fingerprint in
+        var imported = split.new.map { row, fingerprint in
             FinanceTransaction(
                 // Постоянный идентификатор: превью можно пересчитать, а снятые связи останутся теми же.
                 id: FinanceTransaction.ID(UUID(v5: "\(account.id.rawValue.uuidString)|\(fingerprint)", namespace: namespace)),
@@ -148,9 +159,29 @@ public enum ImportPlanner {
                 source: .imported,
                 importBatchID: batchID,
                 fingerprint: fingerprint,
+                isPending: row.isPending,
                 createdAt: now,
                 updatedAt: now
             )
+        }
+
+        // Холды: проведённые строки заменяют сохранённые холды, а холды старой выписки,
+        // уже сохранённые проведёнными, не импортируются.
+        let holds = HoldMatcher.resolve(
+            new: imported,
+            existing: accountTransactions.filter { $0.accountID == account.id },
+            statementFingerprints: Set(ImportDeduplicator.fingerprints(for: statement.rows, accountID: account.id)),
+            period: statement.period
+        )
+        imported.removeAll { holds.alreadyPosted.contains($0.id) }
+        for index in imported.indices {
+            guard let hold = holds.replaced[imported[index].id] else { continue }
+            // Что пользователь выбрал для холда, переходит к проведённой операции.
+            if hold.categoryLocked {
+                imported[index].categoryID = hold.categoryID
+                imported[index].categoryLocked = true
+            }
+            imported[index].note = hold.note
         }
 
         // Снятие наличных: один кошелёк на валюту на весь импорт.
@@ -222,12 +253,14 @@ public enum ImportPlanner {
             walletTransactions: walletTransactions,
             newWallets: newWallets,
             updatedTransactions: updatedTransactions,
-            duplicates: split.duplicates.count,
+            duplicates: split.duplicates.count + holds.alreadyPosted.count,
             links: links.sorted { $0.outgoing.bookedAt > $1.outgoing.bookedAt },
             updatesOpeningBalance: updatesOpeningBalance,
             previousOpeningBalance: updatesOpeningBalance ? originalOpeningBalance : nil,
             mayMissPeriod: updatesOpeningBalance
-                && mayMissPeriod(statement: statement, earliestTransactionDate: earliestTransactionDate)
+                && mayMissPeriod(statement: statement, earliestTransactionDate: earliestTransactionDate),
+            replacedHolds: imported.compactMap { holds.replaced[$0.id] },
+            cancelledHolds: holds.cancelled
         )
     }
 

@@ -119,15 +119,16 @@ struct BNBBankParserTests {
     @Test("Операции со всех страниц таблицы: суммы, описания, MCC")
     func rows() throws {
         let rows = try Self.parse(Self.statement()).rows
-        #expect(rows.map(\.amount.minorUnits) == [-1_145, 10_000, -10_874, 1_047])
+        #expect(rows.map(\.amount.minorUnits) == [-1_145, 10_000, -10_874, 1_047, -441])
         #expect(rows.allSatisfy { $0.amount.currency == .byn && $0.originalAmount == nil })
         #expect(rows.map(\.description) == [
             "SHOP TEST",
             "Зачисление на счет BNB-BANK ERIP OTHER",
             "APTEKA TESTFARM",
             "Комиссионное вознаграждение (money-back)",
+            "SHOP TEST",
         ])
-        #expect(rows.map(\.mcc) == [5411, 6012, 5912, nil])
+        #expect(rows.map(\.mcc) == [5411, 6012, 5912, nil, 5411])
     }
 
     @Test("Дата операции — время совершения, а не отображения по счёту")
@@ -147,12 +148,12 @@ struct BNBBankParserTests {
         #expect(Self.minsk.dateComponents([.year, .month, .day], from: start) == DateComponents(year: 2026, month: 10, day: 1))
     }
 
-    @Test("Операции в обработке не импортируются, но входят в сверку с остатком")
+    @Test("Операции в обработке импортируются с отметкой и входят в сверку с остатком")
     func pending() throws {
         let statement = try Self.parse(Self.statement())
-        #expect(!statement.rows.contains { $0.amount.minorUnits == -441 })
+        #expect(statement.rows.map(\.isPending) == [false, false, false, false, true])
         #expect(statement.warnings.map(\.message) == [
-            "Операции в обработке не импортированы (1): они появятся после проведения. Следующую выписку выгрузите начиная с 31.10.2026",
+            "Операции в обработке (1) импортированы с отметкой: после проведения их заменят операции следующей выписки",
         ])
     }
 

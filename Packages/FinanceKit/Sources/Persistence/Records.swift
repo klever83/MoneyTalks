@@ -119,6 +119,7 @@ struct TransactionRecord: Codable, FetchableRecord, PersistableRecord, Sendable 
     var source: String
     var importBatchID: UUID?
     var fingerprint: String?
+    var isPending: Bool
     var createdAt: Date
     var updatedAt: Date
     var deletedAt: Date?
@@ -144,6 +145,7 @@ struct TransactionRecord: Codable, FetchableRecord, PersistableRecord, Sendable 
         source = transaction.source.rawValue
         importBatchID = transaction.importBatchID
         fingerprint = transaction.fingerprint
+        isPending = transaction.isPending
         createdAt = transaction.createdAt
         updatedAt = transaction.updatedAt
         deletedAt = transaction.deletedAt
@@ -175,6 +177,7 @@ struct TransactionRecord: Codable, FetchableRecord, PersistableRecord, Sendable 
             source: FinanceTransaction.Source(rawValue: source) ?? .manual,
             importBatchID: importBatchID,
             fingerprint: fingerprint,
+            isPending: isPending,
             createdAt: createdAt,
             updatedAt: updatedAt,
             deletedAt: deletedAt
