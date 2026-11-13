@@ -44,7 +44,10 @@ let package = Package(
         ),
 
         .testTarget(name: "DomainTests", dependencies: ["Domain"]),
-        .testTarget(name: "PersistenceTests", dependencies: ["Persistence", "Categorization", "Analytics"]),
+        .testTarget(
+            name: "PersistenceTests",
+            dependencies: ["Persistence", "Categorization", "Analytics", .product(name: "GRDB", package: "GRDB.swift")]
+        ),
         .testTarget(name: "StatementImportTests", dependencies: ["StatementImport", "Domain", "Analytics"]),
         .testTarget(name: "BankParsersBYTests", dependencies: ["BankParsersBY", "StatementImport", "Domain"]),
         .testTarget(name: "CategorizationTests", dependencies: ["Categorization"]),

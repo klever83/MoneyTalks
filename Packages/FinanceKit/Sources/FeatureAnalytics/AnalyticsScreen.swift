@@ -186,9 +186,11 @@ public struct AnalyticsScreen: View {
                 Section {
                     summary
                 } footer: {
-                    let unconverted = model.unconvertedCurrencies.map(\.code).joined(separator: ", ")
-                    if !unconverted.isEmpty {
-                        Text("Нет курса \(unconverted): операции в этой валюте не учтены. Курс загрузится при подключении к сети.")
+                    let unconverted = model.unconvertedCurrencies.map(\.code)
+                    if unconverted.count > 1 {
+                        Text("Нет курсов \(unconverted.joined(separator: ", ")): операции в этих валютах не учтены. Курсы загрузятся при подключении к сети.")
+                    } else if let code = unconverted.first {
+                        Text("Нет курса \(code): операции в этой валюте не учтены. Курс загрузится при подключении к сети.")
                     } else if model.isApproximate {
                         Text("≈ Курса НБ РБ на часть дней ещё нет: пересчёт по ближайшему известному курсу.")
                     }

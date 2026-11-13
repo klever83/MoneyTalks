@@ -8,10 +8,12 @@ public struct SettingsScreen<Categories: View>: View {
     @AppStorage(SettingsKey.baseCurrencyCode) private var baseCurrencyCode = Currency.byn.code
 
     private let lock: AppLock
+    private let backup: any BackupService
     private let categories: () -> Categories
 
-    public init(lock: AppLock, @ViewBuilder categories: @escaping () -> Categories) {
+    public init(lock: AppLock, backup: any BackupService, @ViewBuilder categories: @escaping () -> Categories) {
         self.lock = lock
+        self.backup = backup
         self.categories = categories
     }
 
@@ -63,6 +65,8 @@ public struct SettingsScreen<Categories: View>: View {
                         Text("При возвращении в приложение после сворачивания понадобится \(Text(method.title)). В переключателе приложений суммы скрыты.")
                     }
                 }
+
+                BackupSection(service: backup)
 
                 Section {
                     NavigationLink("Категории") { categories() }
