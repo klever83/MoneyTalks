@@ -6,7 +6,7 @@ import Persistence
 import Testing
 
 /// Ключи курсов, которые экран Обзора просил догрузить.
-private actor RateRequests {
+actor RateRequests {
     private(set) var calls: [Set<ExchangeRateKey>] = []
 
     func record(_ keys: Set<ExchangeRateKey>) {
