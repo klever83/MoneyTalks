@@ -141,6 +141,17 @@ extension AppDatabase {
             try db.create(index: "transactions_superseded_batch", on: "transactions", columns: ["supersededByBatchID"])
         }
 
+        migrator.registerMigration("v7-exchange-rates") { db in
+            // Курсы НБ РБ (#10): сколько BYN за единицу валюты на день в Минске. Курс хранится
+            // десятичной строкой, чтобы не терять знаки при пересчёте.
+            try db.create(table: "exchangeRates") { t in
+                t.column("currencyCode", .text).notNull()
+                t.column("day", .text).notNull()
+                t.column("bynRate", .text).notNull()
+                t.primaryKey(["currencyCode", "day"])
+            }
+        }
+
         return migrator
     }
 }

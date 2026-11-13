@@ -1,8 +1,11 @@
 import DesignSystem
+import Domain
 import SwiftUI
 
 public struct SettingsScreen<Categories: View>: View {
     @AppStorage(SettingsKey.appearance) private var appearance: Appearance = .dark
+    @AppStorage(SettingsKey.convertToBaseCurrency) private var convertsToBase = true
+    @AppStorage(SettingsKey.baseCurrencyCode) private var baseCurrencyCode = Currency.byn.code
 
     private let lock: AppLock
     private let categories: () -> Categories
@@ -18,8 +21,22 @@ public struct SettingsScreen<Categories: View>: View {
     public var body: some View {
         NavigationStack {
             Form {
-                // Основная валюта и пересчёт по курсу НБ РБ вернутся вместе с кэшем курсов (#10):
-                // пока аналитика считает итоги отдельно по каждой валюте, переключатель ничего бы не менял.
+                Section {
+                    Toggle("Пересчитывать в основную валюту", isOn: $convertsToBase)
+                    if convertsToBase {
+                        Picker("Основная валюта", selection: $baseCurrencyCode) {
+                            ForEach(Currency.supported) { currency in
+                                Text(currency.code).tag(currency.code)
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Валюта")
+                } footer: {
+                    Text(convertsToBase
+                        ? "Итоги в Обзоре пересчитываются по официальному курсу НБ РБ на день операции."
+                        : "Итоги в Обзоре показываются отдельно по каждой валюте.")
+                }
 
                 Section("Оформление") {
                     Picker("Тема", selection: $appearance) {
