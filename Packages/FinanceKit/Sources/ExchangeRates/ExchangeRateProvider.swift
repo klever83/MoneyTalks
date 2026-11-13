@@ -7,8 +7,7 @@ public protocol ExchangeRateProvider: Sendable {
 }
 
 /// Официальные курсы Национального банка Республики Беларусь (api.nbrb.by).
-///
-/// Кэширование курсов в базе — отдельная задача; сейчас каждый запрос идёт в сеть.
+/// Каждый запрос идёт в сеть; кэш в базе — `ExchangeRateLoader` и `ExchangeRateRepository`.
 public struct NBRBExchangeRateProvider: ExchangeRateProvider {
     private let session: URLSession
 
@@ -25,16 +24,25 @@ public struct NBRBExchangeRateProvider: ExchangeRateProvider {
 
     /// Сколько BYN стоит одна единица валюты.
     func bynRate(for currency: Currency, on date: Date) async throws -> Decimal {
+        try await bynRate(for: currency, day: ExchangeRateKey.day(for: date))
+    }
+
+    /// Сколько BYN стоит одна единица валюты на день `yyyy-MM-dd`.
+    public func bynRate(for currency: Currency, day: String) async throws -> Decimal {
         if currency == .byn { return 1 }
-        let (data, _) = try await session.data(from: Self.url(for: currency, on: date))
+        let (data, response) = try await session.data(from: Self.url(for: currency, day: day))
+        // На неизвестную валюту или день без курса API отвечает 404 с пустым телом.
+        if let http = response as? HTTPURLResponse, http.statusCode != 200 {
+            throw URLError(.badServerResponse)
+        }
         return try Self.decodeRate(from: data)
     }
 
     static func url(for currency: Currency, on date: Date) -> URL {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "Europe/Minsk") ?? .current
-        let parts = calendar.dateComponents([.year, .month, .day], from: date)
-        let day = String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+        url(for: currency, day: ExchangeRateKey.day(for: date))
+    }
+
+    static func url(for currency: Currency, day: String) -> URL {
         var components = URLComponents(string: "https://api.nbrb.by/exrates/rates/\(currency.code)")!
         components.queryItems = [
             URLQueryItem(name: "parammode", value: "2"),

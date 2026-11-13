@@ -13,6 +13,8 @@ final class OverviewViewModel {
     /// Любой день выбранного месяца.
     var month: Date = .now
     var selectedCurrency: Currency?
+    /// Пересчёт в основную валюту или итоги по каждой валюте (настройка).
+    var mode: AmountDisplayMode = .converted(to: .byn)
     private(set) var summaries: [PeriodSummary] = []
     private(set) var categories: [FinanceCategory] = []
     var errorMessage: String?
@@ -20,22 +22,42 @@ final class OverviewViewModel {
     private let analytics: any AnalyticsRepository
     private let categoryRepository: any CategoryRepository
     private let calendar: Calendar
+    private let loadRates: @Sendable (Set<ExchangeRateKey>) async -> Void
+    /// Курсы, которые уже запрашивали: без сети или на день без курса не спрашиваем снова по кругу.
+    private var requestedRates: Set<ExchangeRateKey> = []
 
-    init(analytics: any AnalyticsRepository, categories: any CategoryRepository, calendar: Calendar = .current) {
+    init(
+        analytics: any AnalyticsRepository,
+        categories: any CategoryRepository,
+        calendar: Calendar = .current,
+        loadRates: @escaping @Sendable (Set<ExchangeRateKey>) async -> Void = { _ in }
+    ) {
         self.analytics = analytics
         categoryRepository = categories
         self.calendar = calendar
+        self.loadRates = loadRates
     }
 
     var current: PeriodSummary? { summaries.last }
     var previous: PeriodSummary? { summaries.dropLast().last }
 
-    /// Валюты, в которых были операции за показанные месяцы. Пересчёта в основную валюту пока нет (#10).
-    var currencies: [Currency] {
-        Array(Set(summaries.flatMap(\.currencies))).sorted { $0.code < $1.code }
+    /// Основная валюта, если итоги пересчитываются.
+    var base: Currency? {
+        if case let .converted(base) = mode { return base }
+        return nil
     }
 
+    /// Валюты, в которых были операции за показанные месяцы. При пересчёте — только основная.
+    var currencies: [Currency] {
+        if let base { return [base] }
+        return Array(Set(summaries.flatMap(\.currencies))).sorted { $0.code < $1.code }
+    }
+
+    /// Пересчёт за месяц шёл не по точным курсам на день операции.
+    var isApproximate: Bool { current?.isApproximate == true }
+
     var currency: Currency {
+        if let base { return base }
         if let selectedCurrency, currencies.contains(selectedCurrency) { return selectedCurrency }
         if currencies.contains(.byn) { return .byn }
         return currencies.first ?? .byn
@@ -86,12 +108,23 @@ final class OverviewViewModel {
     func observeSummaries() async {
         let months = Totals.months(endingAt: month, count: Self.historyLength, calendar: calendar)
         do {
-            for try await items in analytics.observeSummaries(months) {
+            for try await items in analytics.observeSummaries(months, convertingTo: base) {
                 summaries = items
+                requestMissingRates(in: items)
             }
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    /// Недостающие курсы догружаются в фоне; новые курсы в базе сами пересчитают итоги.
+    private func requestMissingRates(in items: [PeriodSummary]) {
+        let missing = items.reduce(into: Set<ExchangeRateKey>()) { $0.formUnion($1.missingRates) }
+            .subtracting(requestedRates)
+        guard !missing.isEmpty else { return }
+        requestedRates.formUnion(missing)
+        let loadRates = loadRates
+        Task { await loadRates(missing) }
     }
 
     func observeCategories() async {
@@ -108,9 +141,25 @@ final class OverviewViewModel {
 /// Главный экран: расходы и доходы за месяц, траты по категориям и динамика за полгода.
 public struct AnalyticsScreen: View {
     @State private var model: OverviewViewModel
+    @AppStorage(SettingsKey.convertToBaseCurrency) private var convertsToBase = true
+    @AppStorage(SettingsKey.baseCurrencyCode) private var baseCurrencyCode = Currency.byn.code
 
-    public init(analytics: any AnalyticsRepository, categories: any CategoryRepository) {
-        _model = State(initialValue: OverviewViewModel(analytics: analytics, categories: categories))
+    /// - Parameter loadRates: загрузка недостающих курсов НБ РБ в кэш.
+    public init(
+        analytics: any AnalyticsRepository,
+        categories: any CategoryRepository,
+        loadRates: @escaping @Sendable (Set<ExchangeRateKey>) async -> Void = { _ in }
+    ) {
+        _model = State(initialValue: OverviewViewModel(analytics: analytics, categories: categories, loadRates: loadRates))
+    }
+
+    private var mode: AmountDisplayMode {
+        convertsToBase ? .converted(to: Currency(code: baseCurrencyCode)) : .perCurrency
+    }
+
+    private struct ObservationKey: Hashable {
+        var month: Date
+        var mode: AmountDisplayMode
     }
 
     public var body: some View {
@@ -131,6 +180,10 @@ public struct AnalyticsScreen: View {
 
                 Section {
                     summary
+                } footer: {
+                    if model.isApproximate {
+                        Text("≈ Курса НБ РБ на часть дней ещё нет: пересчёт по ближайшему известному курсу.")
+                    }
                 }
 
                 if model.slices.isEmpty {
@@ -160,7 +213,10 @@ public struct AnalyticsScreen: View {
             }
             .navigationTitle("Обзор")
             .errorAlert($model.errorMessage)
-            .task(id: model.month) { await model.observeSummaries() }
+            .task(id: ObservationKey(month: model.month, mode: mode)) {
+                model.mode = mode
+                await model.observeSummaries()
+            }
             .task { await model.observeCategories() }
         }
     }

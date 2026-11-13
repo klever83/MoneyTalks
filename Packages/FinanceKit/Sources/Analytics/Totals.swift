@@ -44,14 +44,27 @@ public struct CategoryTotal: Hashable, Sendable {
     }
 }
 
-/// Итоги периода: суммы по категориям верхнего уровня, по каждой валюте отдельно.
+/// Итоги периода: суммы по категориям верхнего уровня, по каждой валюте отдельно
+/// или пересчитанные в основную валюту (`CurrencyConversion`).
 public struct PeriodSummary: Hashable, Sendable {
     public var interval: DateInterval
     public var totals: [CategoryTotal]
+    /// Пересчёт шёл не везде по курсу на день операции: курса на день ещё нет, взят ближайший
+    /// известный, или курса валюты нет совсем, и её операции в итог не попали.
+    public var isApproximate: Bool
+    /// Курсы, которых не хватило для точного пересчёта: их стоит загрузить.
+    public var missingRates: Set<ExchangeRateKey>
 
-    public init(interval: DateInterval, totals: [CategoryTotal]) {
+    public init(
+        interval: DateInterval,
+        totals: [CategoryTotal],
+        isApproximate: Bool = false,
+        missingRates: Set<ExchangeRateKey> = []
+    ) {
         self.interval = interval
         self.totals = totals
+        self.isApproximate = isApproximate
+        self.missingRates = missingRates
     }
 
     public var currencies: [Currency] {
@@ -77,10 +90,18 @@ public struct PeriodSummary: Hashable, Sendable {
     }
 }
 
-/// Итоги нескольких периодов с обновлением после каждого изменения операций.
+/// Итоги нескольких периодов с обновлением после каждого изменения операций (и курсов).
 public protocol AnalyticsRepository: Sendable {
     /// Для каждого интервала — итоги по категориям верхнего уровня. Переводы и удалённые операции не учитываются.
-    func observeSummaries(_ intervals: [DateInterval]) -> AsyncThrowingStream<[PeriodSummary], any Error>
+    /// - Parameter base: основная валюта: всё пересчитывается в неё по курсу НБ РБ на день операции.
+    ///   `nil` — итоги по каждой валюте отдельно.
+    func observeSummaries(_ intervals: [DateInterval], convertingTo base: Currency?) -> AsyncThrowingStream<[PeriodSummary], any Error>
+}
+
+public extension AnalyticsRepository {
+    func observeSummaries(_ intervals: [DateInterval]) -> AsyncThrowingStream<[PeriodSummary], any Error> {
+        observeSummaries(intervals, convertingTo: nil)
+    }
 }
 
 /// Чистые функции аналитики для уже загруженных операций. Агрегаты по базе считает `AnalyticsRepository` в SQL.

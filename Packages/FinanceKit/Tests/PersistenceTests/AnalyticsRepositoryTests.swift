@@ -95,6 +95,34 @@ struct AnalyticsRepositoryTests {
         let updated = try #require(try await iterator.next())
         #expect(updated.first?.incomeExpense(in: .byn).expense.minorUnits == 1000)
     }
+
+    @Test("Пересчёт в BYN по курсу на день из кэша; новый курс сразу пересчитывает итоги")
+    func converted() async throws {
+        let rates = GRDBExchangeRateRepository(database: database)
+        try await transactions.save([
+            try tx(-1000, category: groceries),
+            try tx(-500, category: groceries, currency: .usd, day: 10),
+            try tx(-200, category: groceries, currency: .usd, day: 12),
+        ])
+        try await rates.save([ExchangeRateKey(currency: .usd, day: "2026-10-10"): Decimal(string: "3.2")!])
+
+        var iterator = analytics.observeSummaries([month], convertingTo: .byn).makeAsyncIterator()
+        let first = try #require(try await iterator.next()?.first)
+        // 12-го курса нет: берётся курс 10-го, итог приблизительный, курс 12-го просится к загрузке.
+        #expect(first.incomeExpense(in: .byn).expense.minorUnits == 1000 + 1600 + 640)
+        #expect(first.currencies == [.byn])
+        #expect(first.isApproximate)
+        #expect(first.missingRates == [ExchangeRateKey(currency: .usd, day: "2026-10-12")])
+
+        try await rates.save([ExchangeRateKey(currency: .usd, day: "2026-10-12"): Decimal(string: "3.25")!])
+        let second = try #require(try await iterator.next()?.first)
+        #expect(second.incomeExpense(in: .byn).expense.minorUnits == 1000 + 1600 + 650)
+        #expect(!second.isApproximate && second.missingRates.isEmpty)
+
+        // Без пересчёта — по валютам, как раньше.
+        let perCurrency = try await summary()
+        #expect(perCurrency.currencies == [.byn, .usd])
+    }
 }
 
 private extension FinanceTransaction {

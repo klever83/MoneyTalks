@@ -20,7 +20,11 @@ public struct AppRootView: View {
     public var body: some View {
         TabView {
             Tab("Обзор", systemImage: "chart.pie") {
-                AnalyticsScreen(analytics: dependencies.analytics, categories: dependencies.categories)
+                AnalyticsScreen(
+                    analytics: dependencies.analytics,
+                    categories: dependencies.categories,
+                    loadRates: { [loader = dependencies.exchangeRates] keys in _ = await loader.load(keys) }
+                )
             }
             Tab("Операции", systemImage: "list.bullet.rectangle") {
                 TransactionsScreen(

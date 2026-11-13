@@ -2,6 +2,7 @@ import Analytics
 import BankParsersBY
 import Categorization
 import Domain
+import ExchangeRates
 import Persistence
 import StatementImport
 
@@ -14,6 +15,8 @@ public struct Dependencies: Sendable {
     public let categoryRules: any CategoryRuleRepository
     public let categorizer: any TransactionCategorizer
     public let analytics: any AnalyticsRepository
+    /// Загрузка недостающих курсов НБ РБ в кэш (#10).
+    public let exchangeRates: ExchangeRateLoader
     public let parserRegistry: ParserRegistry
 
     init(database: AppDatabase) {
@@ -25,6 +28,7 @@ public struct Dependencies: Sendable {
         categoryRules = rules
         categorizer = RuleBasedTransactionCategorizer(repository: rules, categories: categories)
         analytics = GRDBAnalyticsRepository(database: database)
+        exchangeRates = ExchangeRateLoader(repository: GRDBExchangeRateRepository(database: database))
         parserRegistry = ParserRegistry(parsers: BankParsersBY.all)
     }
 
