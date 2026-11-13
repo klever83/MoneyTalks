@@ -122,6 +122,8 @@ private struct SupportedBanksView: View {
     let banks: [BankInfo]
     let pickFile: () -> Void
     @State private var batchToRollback: ImportBatch?
+    /// Счёт партии можно удалить вместе с откатом: проверяется при открытии диалога.
+    @State private var canDeleteAccount = false
 
     var body: some View {
         List {
@@ -136,7 +138,9 @@ private struct SupportedBanksView: View {
                         BatchRow(batch: batch, accountName: model.accountName(for: batch))
                             .swipeActions {
                                 Button("Отменить", systemImage: "arrow.uturn.backward", role: .destructive) {
+                                    canDeleteAccount = false
                                     batchToRollback = batch
+                                    Task { canDeleteAccount = await model.canDeleteAccount(with: batch) }
                                 }
                             }
                     }
@@ -161,7 +165,7 @@ private struct SupportedBanksView: View {
             Button("Отменить импорт", role: .destructive) {
                 Task { await model.rollback(batch) }
             }
-            if model.canDeleteAccount(with: batch) {
+            if canDeleteAccount {
                 Button("Отменить и удалить счёт «\(model.accountName(for: batch))»", role: .destructive) {
                     Task { await model.rollback(batch, deleteAccount: true) }
                 }

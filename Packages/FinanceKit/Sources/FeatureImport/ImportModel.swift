@@ -105,10 +105,18 @@ final class ImportModel {
         }
     }
 
-    /// Счёт можно удалить вместе с откатом, только если его создал этот импорт и других импортов
-    /// в него нет: иначе удалились бы и их операции.
-    func canDeleteAccount(with batch: ImportBatch) -> Bool {
-        batch.createdAccount && !batches.contains { $0.id != batch.id && $0.accountID == batch.accountID }
+    /// Счёт можно удалить вместе с откатом, только если его создал этот импорт и в нём нет других
+    /// операций: ни других импортов, ни добавленных вручную. Иначе удаление счёта унесло бы и их.
+    func canDeleteAccount(with batch: ImportBatch) async -> Bool {
+        guard batch.createdAccount,
+              !batches.contains(where: { $0.id != batch.id && $0.accountID == batch.accountID })
+        else { return false }
+        do {
+            let operations = try await transactionRepository.transactions(TransactionQuery(accountID: batch.accountID))
+            return operations.allSatisfy { $0.importBatchID == batch.id }
+        } catch {
+            return false
+        }
     }
 
     func accountName(for batch: ImportBatch) -> String {
