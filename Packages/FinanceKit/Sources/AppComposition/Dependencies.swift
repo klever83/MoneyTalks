@@ -17,6 +17,8 @@ public struct Dependencies: Sendable {
     public let analytics: any AnalyticsRepository
     /// Загрузка недостающих курсов НБ РБ в кэш (#10).
     public let exchangeRates: ExchangeRateLoader
+    /// Резервная копия базы в файл (#69).
+    public let backup: any BackupService
     public let parserRegistry: ParserRegistry
 
     init(database: AppDatabase) {
@@ -29,6 +31,7 @@ public struct Dependencies: Sendable {
         categorizer = RuleBasedTransactionCategorizer(repository: rules, categories: categories)
         analytics = GRDBAnalyticsRepository(database: database)
         exchangeRates = ExchangeRateLoader(repository: GRDBExchangeRateRepository(database: database))
+        backup = GRDBBackupService(database: database)
         parserRegistry = ParserRegistry(parsers: BankParsersBY.all)
     }
 

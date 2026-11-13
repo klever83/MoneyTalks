@@ -132,3 +132,19 @@ public extension AccountRepository {
     /// Реализация по умолчанию для хранилищ без мягкого удаления (превью, тестовые заглушки).
     func deletedAccountIDs() async throws -> Set<Account.ID> { [] }
 }
+
+public enum BackupError: Error, Equatable, Sendable {
+    /// Файл не база MoneyTalks.
+    case notBackup
+    /// Копия сделана более новой версией приложения: её схему эта версия не знает.
+    case newerVersion
+}
+
+/// Резервная копия всей базы в файл и восстановление из неё (#69).
+public protocol BackupService: Sendable {
+    /// Записывает согласованный снимок базы в файл `url`.
+    func exportBackup(to url: URL) async throws
+    /// Заменяет содержимое базы копией из `url`. Копия проверяется и доводится миграциями до
+    /// текущей схемы во временном файле; если что-то не так, текущие данные не трогаются.
+    func restoreBackup(from url: URL) async throws
+}

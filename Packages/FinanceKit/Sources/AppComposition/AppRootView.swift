@@ -49,7 +49,7 @@ public struct AppRootView: View {
                 AccountsScreen(repository: dependencies.accounts)
             }
             Tab("Настройки", systemImage: "gearshape") {
-                SettingsScreen(lock: lock) {
+                SettingsScreen(lock: lock, backup: dependencies.backup) {
                     CategoriesScreen(repository: dependencies.categories, rules: dependencies.categoryRules)
                 }
             }
