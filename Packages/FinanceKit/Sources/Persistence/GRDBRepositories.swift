@@ -269,8 +269,11 @@ public struct GRDBImportRepository: ImportRepository {
         self.database = database
     }
 
-    public func commitImport(accounts: [Account], transactions: [FinanceTransaction], links: [TransferLink]) async throws {
+    public func commitImport(
+        batch: ImportBatch?, accounts: [Account], transactions: [FinanceTransaction], links: [TransferLink]
+    ) async throws {
         let now = Date.now
+        let batchRecord = batch.map(ImportBatchRecord.init)
         let accountRecords = accounts.map { account in
             var account = account
             account.updatedAt = now
@@ -285,6 +288,8 @@ public struct GRDBImportRepository: ImportRepository {
             for record in accountRecords {
                 try record.save(db)
             }
+            // После счетов: у партии внешний ключ на счёт, а счёт может быть новым.
+            try batchRecord?.insert(db)
             for record in transactionRecords {
                 try record.save(db)
             }
@@ -301,6 +306,70 @@ public struct GRDBImportRepository: ImportRepository {
                     )
                 guard changed == 1 else { throw ImportCommitError.transactionChanged }
             }
+        }
+    }
+
+    public func observeBatches() -> AsyncThrowingStream<[ImportBatch], any Error> {
+        database.stream(ValueObservation.tracking { db in
+            try ImportBatchRecord
+                .filter(Column("rolledBackAt") == nil)
+                // Партии удалённых счетов не показываются: их операции уже удалены вместе со счётом.
+                .filter(sql: "accountID IN (SELECT id FROM accounts WHERE deletedAt IS NULL)")
+                .order(Column("importedAt").desc)
+                .fetchAll(db)
+                .map(\.domain)
+        })
+    }
+
+    public func batch(fileHash: String) async throws -> ImportBatch? {
+        try await database.writer.read { db in
+            try ImportBatchRecord
+                .filter(Column("fileHash") == fileHash && Column("rolledBackAt") == nil)
+                .order(Column("importedAt").desc)
+                .fetchOne(db)?
+                .domain
+        }
+    }
+
+    public func rollback(_ batchID: UUID) async throws {
+        let now = Date.now
+        try await database.writer.write { db in
+            guard let batch = try ImportBatchRecord.fetchOne(db, key: batchID), batch.rolledBackAt == nil else { return }
+            let batchTransactions = TransactionRecord.filter(Column("importBatchID") == batchID)
+            // Пары переводов, в которых участвуют операции партии.
+            let pairIDs = try batchTransactions
+                .filter(Column("transferPairID") != nil)
+                .select(Column("transferPairID"), as: UUID.self)
+                .fetchSet(db)
+            _ = try batchTransactions
+                .filter(deletedAt == nil)
+                .updateAll(db, deletedAt.set(to: now), Column("updatedAt").set(to: now))
+            // Без отпечатка удалённая операция не считается дублем: выписку можно загрузить заново.
+            _ = try batchTransactions
+                .updateAll(db, Column("fingerprint").set(to: nil))
+            // Вторые стороны переводов из других выписок снова становятся расходом или доходом.
+            if !pairIDs.isEmpty {
+                let partners = try TransactionRecord
+                    .filter(pairIDs.contains(Column("transferPairID")))
+                    // Операции партии уже помечены удалёнными, остаются только чужие стороны.
+                    .filter(deletedAt == nil)
+                    .fetchAll(db)
+                for var partner in partners {
+                    partner.kind = (partner.amountMinor < 0
+                        ? FinanceTransaction.Kind.expense : FinanceTransaction.Kind.income).rawValue
+                    partner.transferPairID = nil
+                    partner.updatedAt = now
+                    try partner.update(db)
+                }
+            }
+            if let previous = batch.previousOpeningBalanceMinor {
+                _ = try AccountRecord
+                    .filter(key: batch.accountID)
+                    .updateAll(db, Column("openingBalanceMinor").set(to: previous), Column("updatedAt").set(to: now))
+            }
+            var rolledBack = batch
+            rolledBack.rolledBackAt = now
+            try rolledBack.update(db)
         }
     }
 }

@@ -42,14 +42,16 @@ public struct ImportScreen: View {
                     }
                 }
         }
+        .errorAlert($model.errorMessage)
         .task { await model.observeAccounts() }
+        .task { await model.observeBatches() }
     }
 
     @ViewBuilder
     private var content: some View {
         switch model.phase {
         case .idle:
-            SupportedBanksView(banks: banks) { isPickingFile = true }
+            SupportedBanksView(model: model, banks: banks) { isPickingFile = true }
         case .working:
             ProgressView("Читаю выписку…")
         case .choosingBank:
@@ -116,8 +118,10 @@ public struct ImportScreen: View {
 }
 
 private struct SupportedBanksView: View {
+    let model: ImportModel
     let banks: [BankInfo]
     let pickFile: () -> Void
+    @State private var batchToRollback: ImportBatch?
 
     var body: some View {
         List {
@@ -126,12 +130,61 @@ private struct SupportedBanksView: View {
             } footer: {
                 Text("Выгрузите выписку в приложении или интернет-банке в PDF и выберите файл.")
             }
+            if !model.batches.isEmpty {
+                Section {
+                    ForEach(model.batches) { batch in
+                        BatchRow(batch: batch, accountName: model.accountName(for: batch))
+                            .swipeActions {
+                                Button("Отменить", systemImage: "arrow.uturn.backward", role: .destructive) {
+                                    batchToRollback = batch
+                                }
+                            }
+                    }
+                } header: {
+                    Text("История импорта")
+                } footer: {
+                    Text("Смахните, чтобы отменить импорт: его операции удалятся, и выписку можно будет загрузить заново.")
+                }
+            }
             Section("Поддерживаемые банки") {
                 ForEach(banks, id: \.id) { bank in
                     Text(bank.name)
                 }
             }
         }
+        .confirmationDialog(
+            "Отменить импорт?",
+            isPresented: Binding(get: { batchToRollback != nil }, set: { if !$0 { batchToRollback = nil } }),
+            titleVisibility: .visible,
+            presenting: batchToRollback
+        ) { batch in
+            Button("Отменить импорт", role: .destructive) {
+                Task { await model.rollback(batch) }
+            }
+        } message: { batch in
+            Text("Операции из «\(batch.fileName)» (\(batch.transactionCount)) будут удалены. Переводы с операциями других выписок снимутся.")
+        }
+    }
+}
+
+/// Строка истории: счёт, файл, дата и число операций.
+private struct BatchRow: View {
+    let batch: ImportBatch
+    let accountName: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(accountName)
+            Text(batch.fileName)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Text(batch.importedAt, format: .dateTime.day().month().year().hour().minute())
+                + Text(" · ")
+                + Text("операций: \(batch.transactionCount)")
+        }
+        .font(.subheadline)
     }
 }
 
@@ -157,6 +210,15 @@ struct ImportPreviewView: View {
                     LabeledContent("Остаток") {
                         Text(opening.formatted()) + Text(" → ") + Text(closing.formatted())
                     }
+                }
+                if let batch = model.alreadyImported {
+                    Label {
+                        Text("Этот файл уже импортирован \(batch.importedAt, format: .dateTime.day().month().year()). Повторные операции отсеются как дубли.")
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle")
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
                 }
                 if plan.updatesOpeningBalance {
                     Text("Выписка начинается раньше операций счёта: начальный остаток счёта возьмётся из неё.")

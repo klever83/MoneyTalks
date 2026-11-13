@@ -127,6 +127,7 @@ struct ImportPlannerTests {
             #expect(later.updatesOpeningBalance)
             #expect(later.account.openingBalance.minorUnits == 100_000)
             #expect(later.accountsToSave.contains { $0.id == account.id })
+            #expect(later.previousOpeningBalance?.minorUnits == 5_000)
         }
 
         // Операции начинаются через месяц после конца выписки: возможно, пропущен период.
@@ -146,6 +147,7 @@ struct ImportPlannerTests {
         #expect(!earlier.updatesOpeningBalance)
         #expect(earlier.account.openingBalance.minorUnits == 5_000)
         #expect(!earlier.accountsToSave.contains { $0.id == account.id })
+        #expect(earlier.previousOpeningBalance == nil)
     }
 
     @Test("Одинаковый номер операции у двух строк даёт разные отпечатки")

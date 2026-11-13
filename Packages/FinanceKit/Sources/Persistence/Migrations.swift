@@ -106,6 +106,24 @@ extension AppDatabase {
             }
         }
 
+        migrator.registerMigration("v4-import-batches") { db in
+            try db.create(table: "importBatches") { t in
+                t.primaryKey("id", .blob)
+                t.column("accountID", .blob).notNull().references("accounts", onDelete: .cascade)
+                t.column("bankName", .text).notNull()
+                t.column("fileName", .text).notNull()
+                t.column("fileHash", .text).indexed()
+                t.column("periodStart", .datetime)
+                t.column("periodEnd", .datetime)
+                t.column("importedAt", .datetime).notNull()
+                t.column("transactionCount", .integer).notNull()
+                t.column("duplicateCount", .integer).notNull().defaults(to: 0)
+                t.column("previousOpeningBalanceMinor", .integer)
+                t.column("rolledBackAt", .datetime)
+            }
+            try db.create(index: "transactions_import_batch", on: "transactions", columns: ["importBatchID"])
+        }
+
         return migrator
     }
 }
