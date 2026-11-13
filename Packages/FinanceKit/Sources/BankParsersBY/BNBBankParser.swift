@@ -77,7 +77,7 @@ public struct BNBBankParser: StatementParser {
 
         var rows: [ParsedRow] = []
         var warnings: [ParseWarning] = []
-        var pendingCount = 0
+        var pendingDates: [Date] = []
         for (index, cells) in table.enumerated() {
             guard let bookedAt = BYDate.dateTime(cells[1]),
                   let amount = Self.money(cells[5]), amount.currency == accountCurrency
@@ -88,7 +88,7 @@ public struct BNBBankParser: StatementParser {
             // Начисления по нулям (капитализация без процентов) в выписке есть, но это не операции.
             guard amount.minorUnits != 0 else { continue }
             let isPending = cells[0].hasPrefix("В обработке")
-            if isPending { pendingCount += 1 }
+            if isPending { pendingDates.append(bookedAt) }
 
             let type = cells[2]
             let details = cells[3] == "-" ? "" : cells[3]
@@ -110,10 +110,15 @@ public struct BNBBankParser: StatementParser {
             ))
         }
 
-        if pendingCount > 0 {
+        if let earliest = pendingDates.min() {
+            // Проведённая операция приходит с датой совершения, то есть внутри этого периода:
+            // следующая выписка должна его захватить, иначе холд не заменится.
+            let day = BYDate.calendar.dateComponents([.year, .month, .day], from: earliest)
             warnings.append(ParseWarning(
                 line: nil,
-                message: "Операции в обработке (\(pendingCount)) импортированы с отметкой: после проведения их заменят операции следующей выписки"
+                message: "Операции в обработке (\(pendingDates.count)) импортированы с отметкой. "
+                    + String(format: "Следующую выписку выгрузите начиная с %02d.%02d.%04d", day.day ?? 0, day.month ?? 0, day.year ?? 0)
+                    + ", тогда они заменятся проведёнными"
             ))
         }
         if layout.uncertainWords > 0 {

@@ -153,7 +153,7 @@ struct BNBBankParserTests {
         let statement = try Self.parse(Self.statement())
         #expect(statement.rows.map(\.isPending) == [false, false, false, false, true])
         #expect(statement.warnings.map(\.message) == [
-            "Операции в обработке (1) импортированы с отметкой: после проведения их заменят операции следующей выписки",
+            "Операции в обработке (1) импортированы с отметкой. Следующую выписку выгрузите начиная с 31.10.2026, тогда они заменятся проведёнными",
         ])
     }
 

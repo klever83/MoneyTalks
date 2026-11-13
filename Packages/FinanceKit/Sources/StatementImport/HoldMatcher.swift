@@ -50,7 +50,12 @@ public enum HoldMatcher {
         period: DateInterval?
     ) -> Resolution {
         var resolution = Resolution()
-        let holds = existing.filter { $0.isPending && $0.deletedAt == nil }
+        // Одна выписка не показывает одну операцию дважды: холд, который она всё ещё показывает
+        // в обработке, не проведён её же строками (соседняя поездка в метро на ту же сумму — другая операция).
+        let inStatement = { (transaction: FinanceTransaction) in
+            transaction.fingerprint.map(statementFingerprints.contains) ?? false
+        }
+        let holds = existing.filter { $0.isPending && $0.deletedAt == nil && !inStatement($0) }
         let posted = new.filter { !$0.isPending }
         for (hold, transaction) in pairs(holds, posted) {
             resolution.replaced[transaction.id] = hold
@@ -60,14 +65,16 @@ public enum HoldMatcher {
         if let period {
             resolution.cancelled = holds.filter { hold in
                 !replacedIDs.contains(hold.id)
-                    && !(hold.fingerprint.map(statementFingerprints.contains) ?? false)
                     && period.contains(hold.bookedAt)
                     && period.end.timeIntervalSince(hold.bookedAt) >= expiry
             }
         }
 
-        // Выписка старше уже загруженной: её холды давно проведены и сохранены.
-        let savedPosted = existing.filter { !$0.isPending && $0.deletedAt == nil && $0.source == .imported }
+        // Выписка старше уже загруженной: её холды давно проведены и сохранены. Проведённая операция,
+        // которую показывает эта же выписка, — не версия её холда, а другая операция.
+        let savedPosted = existing.filter {
+            !$0.isPending && $0.deletedAt == nil && $0.source == .imported && !inStatement($0)
+        }
         let newHolds = new.filter(\.isPending)
         resolution.alreadyPosted = Set(pairs(newHolds, savedPosted).map(\.hold.id))
         return resolution

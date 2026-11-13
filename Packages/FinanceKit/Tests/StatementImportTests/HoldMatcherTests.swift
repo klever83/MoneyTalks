@@ -91,4 +91,25 @@ struct HoldMatcherTests {
         // Ручная операция с той же суммой — не проведённый холд.
         #expect(resolution.alreadyPosted == [hold.id])
     }
+
+    @Test("Пересекающиеся выписки с одинаковыми суммами в соседние дни: холды не путаются с соседними операциями")
+    func overlappingStatements() {
+        // Выписка за 1–12: холд метро 12-го и проведённая поездка 11-го. Выписка за 1–13 показывает их
+        // так же и добавляет проведённую поездку 13-го и новый холд 12-го чуть раньше.
+        let hold = transaction(-90, "METRO", days: 11, pending: true, fingerprint: "ph:hold")
+        let postedYesterday = transaction(-90, "METRO", days: 10, fingerprint: "h:posted")
+        let newPosted = transaction(-90, "METRO", days: 12)
+        let newHold = transaction(-90, "METRO", days: 11, pending: true)
+        let resolution = HoldMatcher.resolve(
+            new: [newPosted, newHold],
+            existing: [hold, postedYesterday],
+            statementFingerprints: ["ph:hold", "h:posted"],
+            period: DateInterval(start: start, end: start.addingTimeInterval(13 * day))
+        )
+        // Холд всё ещё в обработке: соседняя поездка его не проводит.
+        #expect(resolution.replaced.isEmpty)
+        // Вчерашняя поездка есть в этой же выписке: новый холд — другая операция.
+        #expect(resolution.alreadyPosted.isEmpty)
+        #expect(resolution.cancelled.isEmpty)
+    }
 }
