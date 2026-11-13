@@ -34,6 +34,9 @@ public struct FinanceTransaction: Identifiable, Hashable, Codable, Sendable {
     public var source: Source
     public var importBatchID: UUID?
     public var fingerprint: String?
+    /// Операция ещё в обработке у банка (холд): при проведении следующий импорт заменит её проведённой.
+    /// В остатке счёта учитывается, как и проведённая.
+    public var isPending: Bool
     public var createdAt: Date
     public var updatedAt: Date
     public var deletedAt: Date?
@@ -55,6 +58,7 @@ public struct FinanceTransaction: Identifiable, Hashable, Codable, Sendable {
         source: Source,
         importBatchID: UUID? = nil,
         fingerprint: String? = nil,
+        isPending: Bool = false,
         createdAt: Date = .now,
         updatedAt: Date = .now,
         deletedAt: Date? = nil
@@ -75,6 +79,7 @@ public struct FinanceTransaction: Identifiable, Hashable, Codable, Sendable {
         self.source = source
         self.importBatchID = importBatchID
         self.fingerprint = fingerprint
+        self.isPending = isPending
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.deletedAt = deletedAt

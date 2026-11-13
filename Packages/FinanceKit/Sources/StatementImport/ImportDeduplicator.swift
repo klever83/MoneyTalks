@@ -7,7 +7,14 @@ public enum ImportDeduplicator {
     /// Отпечаток строки. Если банк дал свой идентификатор, используем его.
     /// Иначе хэш от счёта, времени, суммы, описания и порядкового номера среди одинаковых строк
     /// (два кофе по 5 BYN в одной кофейне за день — это две разные операции).
+    /// У операции в обработке свой префикс: проведённая версия с теми же полями не должна
+    /// считаться её дублем, она заменяет холд (см. `HoldMatcher`).
     public static func fingerprint(for row: ParsedRow, accountID: Account.ID, occurrence: Int) -> String {
+        let base = postedFingerprint(for: row, accountID: accountID, occurrence: occurrence)
+        return row.isPending ? "p" + base : base
+    }
+
+    private static func postedFingerprint(for row: ParsedRow, accountID: Account.ID, occurrence: Int) -> String {
         if let reference = row.bankReference, !reference.isEmpty {
             // Банк может дать один номер нескольким строкам (операция и её комиссия): различаем по повтору.
             return occurrence == 0 ? "ref:\(reference)" : "ref:\(reference)#\(occurrence)"

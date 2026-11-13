@@ -252,7 +252,14 @@ private struct TransactionRow: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            MoneyText(transaction.amount)
+            VStack(alignment: .trailing) {
+                MoneyText(transaction.amount)
+                if transaction.isPending {
+                    Text("В обработке")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
         }
     }
 }

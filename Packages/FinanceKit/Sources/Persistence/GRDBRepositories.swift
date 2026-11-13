@@ -270,7 +270,11 @@ public struct GRDBImportRepository: ImportRepository {
     }
 
     public func commitImport(
-        batch: ImportBatch?, accounts: [Account], transactions: [FinanceTransaction], links: [TransferLink]
+        batch: ImportBatch?,
+        accounts: [Account],
+        transactions: [FinanceTransaction],
+        links: [TransferLink],
+        supersededHolds: [FinanceTransaction.ID]
     ) async throws {
         let now = Date.now
         let batchRecord = batch.map(ImportBatchRecord.init)
@@ -302,6 +306,18 @@ public struct GRDBImportRepository: ImportRepository {
                         Column("kind").set(to: FinanceTransaction.Kind.transfer.rawValue),
                         Column("transferPairID").set(to: link.pairID),
                         Column("categoryID").set(to: nil),
+                        Column("updatedAt").set(to: now)
+                    )
+                guard changed == 1 else { throw ImportCommitError.transactionChanged }
+            }
+            for id in supersededHolds {
+                let changed = try TransactionRecord
+                    .filter(key: id.rawValue)
+                    .filter(deletedAt == nil && Column("isPending") == true)
+                    .updateAll(
+                        db,
+                        deletedAt.set(to: now),
+                        Column("supersededByBatchID").set(to: batch?.id),
                         Column("updatedAt").set(to: now)
                     )
                 guard changed == 1 else { throw ImportCommitError.transactionChanged }
@@ -350,8 +366,19 @@ public struct GRDBImportRepository: ImportRepository {
                 .filter(deletedAt == nil)
                 .updateAll(db, deletedAt.set(to: now), Column("updatedAt").set(to: now))
             // Без отпечатка удалённая операция не считается дублем: выписку можно загрузить заново.
+            // Холды партии, которые заменил более поздний импорт, к нему больше не привязаны:
+            // его откат не должен вернуть холд откаченной выписки.
             _ = try batchTransactions
-                .updateAll(db, Column("fingerprint").set(to: nil))
+                .updateAll(db, Column("fingerprint").set(to: nil), Column("supersededByBatchID").set(to: nil))
+            // Холды, которые заменила или сняла эта партия, возвращаются.
+            _ = try TransactionRecord
+                .filter(Column("supersededByBatchID") == batchID)
+                .updateAll(
+                    db,
+                    deletedAt.set(to: nil),
+                    Column("supersededByBatchID").set(to: nil),
+                    Column("updatedAt").set(to: now)
+                )
             // Вторые стороны переводов из других выписок снова становятся расходом или доходом.
             if !pairIDs.isEmpty {
                 let partners = try TransactionRecord

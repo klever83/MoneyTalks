@@ -204,7 +204,8 @@ final class ImportModel {
                 batch: batch,
                 accounts: plan.accountsToSave,
                 transactions: plan.transactionsToSave,
-                links: plan.transferLinks
+                links: plan.transferLinks,
+                supersededHolds: plan.supersededHolds
             )
             phase = .done(imported: plan.newTransactions.count)
         } catch {
@@ -279,9 +280,18 @@ final class ImportModel {
             let window = TransferMatcher.defaultWindow
             let deletedAccounts = try await accountRepository.deletedAccountIDs()
             var recent: [FinanceTransaction] = []
+            var accountTransactions: [FinanceTransaction] = []
             if let first = dates.min(), let last = dates.max() {
                 let interval = DateInterval(start: first.addingTimeInterval(-window), end: last.addingTimeInterval(window + 1))
                 recent = try await transactionRepository.transactions(TransactionQuery(interval: interval))
+                if !isNew {
+                    // Холды счёта, которые выписка может провести или отменить, и уже проведённые операции.
+                    let start = min(first, statement.period?.start ?? first).addingTimeInterval(-HoldMatcher.window)
+                    let end = max(last, statement.period?.end ?? last).addingTimeInterval(HoldMatcher.window + 1)
+                    accountTransactions = try await transactionRepository.transactions(
+                        TransactionQuery(interval: DateInterval(start: start, end: end), accountID: account.id)
+                    )
+                }
             }
             var plan = ImportPlanner.plan(
                 statement: statement,
@@ -293,6 +303,7 @@ final class ImportModel {
                 earliestTransactionDate: earliest,
                 deletedAccountIDs: deletedAccounts,
                 recentTransactions: recent,
+                accountTransactions: accountTransactions,
                 walletName: String(localized: "Наличные"),
                 excludedLinks: excluded,
                 batchID: batchID

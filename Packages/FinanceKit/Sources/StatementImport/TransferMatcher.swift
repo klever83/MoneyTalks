@@ -48,6 +48,8 @@ public enum TransferMatcher {
     public static func pairs(in transactions: [FinanceTransaction], window: TimeInterval = defaultWindow) -> [Pair] {
         let candidates = transactions.filter { transaction in
             transaction.deletedAt == nil
+                // Холд связывается переводом, когда проведётся: иначе связь ушла бы вместе с ним.
+                && !transaction.isPending
                 && transaction.transferPairID == nil
                 && !transaction.categoryLocked
                 && transaction.kind != .transfer
