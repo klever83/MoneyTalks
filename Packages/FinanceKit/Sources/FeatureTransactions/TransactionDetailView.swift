@@ -106,7 +106,9 @@ struct TransactionDetailView: View {
                     LabeledContent("В валюте покупки") { MoneyText(original) }
                 }
             } footer: {
-                if transaction.isPending {
+                if transaction.isStaleHold() {
+                    Text("Операция в обработке больше месяца: скорее всего, банк её отменил или провёл с другой суммой. Если проведённая версия уже есть в списке, удалите эту, иначе остаток будет занижен.")
+                } else if transaction.isPending {
                     Text("Операция в обработке у банка. Когда она проведётся, следующая выписка заменит её проведённой.")
                 }
             }

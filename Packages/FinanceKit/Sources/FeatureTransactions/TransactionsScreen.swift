@@ -254,7 +254,11 @@ private struct TransactionRow: View {
             Spacer()
             VStack(alignment: .trailing) {
                 MoneyText(transaction.amount)
-                if transaction.isPending {
+                if transaction.isStaleHold() {
+                    Text("Давно в обработке")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                } else if transaction.isPending {
                     Text("В обработке")
                         .font(.caption)
                         .foregroundStyle(.orange)

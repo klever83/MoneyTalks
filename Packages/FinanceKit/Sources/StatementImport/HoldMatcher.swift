@@ -13,7 +13,7 @@ public enum HoldMatcher {
     public static let window: TimeInterval = 14 * 86_400
     /// Холд, который выписка за его дату не содержит ни в каком виде и с даты которого прошёл
     /// этот срок, считается отменённым банком.
-    static let expiry: TimeInterval = 30 * 86_400
+    static let expiry = FinanceTransaction.holdExpiry
 
     public struct Resolution: Sendable, Equatable {
         /// Сохранённые холды, которые провелись в этой выписке: проведённая операция → холд.
