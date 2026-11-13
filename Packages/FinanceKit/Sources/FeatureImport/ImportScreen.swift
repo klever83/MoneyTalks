@@ -161,6 +161,11 @@ private struct SupportedBanksView: View {
             Button("Отменить импорт", role: .destructive) {
                 Task { await model.rollback(batch) }
             }
+            if model.canDeleteAccount(with: batch) {
+                Button("Отменить и удалить счёт «\(model.accountName(for: batch))»", role: .destructive) {
+                    Task { await model.rollback(batch, deleteAccount: true) }
+                }
+            }
         } message: { batch in
             Text("Операции из «\(batch.fileName)» (\(batch.transactionCount)) будут удалены. Переводы с операциями других выписок снимутся.")
         }

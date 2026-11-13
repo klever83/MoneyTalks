@@ -86,13 +86,29 @@ final class ImportModel {
         }
     }
 
-    /// Откат импорта целиком (см. `ImportRepository.rollback`).
-    func rollback(_ batch: ImportBatch) async {
+    /// Откат импорта целиком (см. `ImportRepository.rollback`). Операциям других выписок, с которых
+    /// снят перевод, категория проставляется заново по правилам: при связи она была стёрта.
+    /// - Parameter deleteAccount: удалить и счёт, созданный этим импортом.
+    func rollback(_ batch: ImportBatch, deleteAccount: Bool = false) async {
         do {
-            try await importRepository.rollback(batch.id)
+            let released = try await importRepository.rollback(batch.id)
+            let categorized = try await categorizer.categorize(released)
+            let changed = zip(released, categorized).filter { $0.categoryID != $1.categoryID }.map(\.1)
+            if !changed.isEmpty {
+                try await transactionRepository.save(changed)
+            }
+            if deleteAccount {
+                try await accountRepository.delete(batch.accountID)
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    /// Счёт можно удалить вместе с откатом, только если его создал этот импорт и других импортов
+    /// в него нет: иначе удалились бы и их операции.
+    func canDeleteAccount(with batch: ImportBatch) -> Bool {
+        batch.createdAccount && !batches.contains { $0.id != batch.id && $0.accountID == batch.accountID }
     }
 
     func accountName(for batch: ImportBatch) -> String {
@@ -171,7 +187,9 @@ final class ImportModel {
             period: plan.statement.period ?? rows.min().flatMap { first in rows.max().map { DateInterval(start: first, end: $0) } },
             transactionCount: plan.newTransactions.count,
             duplicateCount: plan.duplicates,
-            previousOpeningBalanceMinor: plan.previousOpeningBalance?.minorUnits
+            previousOpeningBalanceMinor: plan.previousOpeningBalance?.minorUnits,
+            appliedOpeningBalanceMinor: plan.updatesOpeningBalance ? plan.account.openingBalance.minorUnits : nil,
+            createdAccount: plan.isNewAccount
         )
         do {
             try await importRepository.commitImport(

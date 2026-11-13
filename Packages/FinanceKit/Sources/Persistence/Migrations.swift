@@ -124,6 +124,13 @@ extension AppDatabase {
             try db.create(index: "transactions_import_batch", on: "transactions", columns: ["importBatchID"])
         }
 
+        migrator.registerMigration("v5-import-batch-extras") { db in
+            try db.alter(table: "importBatches") { t in
+                t.add(column: "appliedOpeningBalanceMinor", .integer)
+                t.add(column: "createdAccount", .boolean).notNull().defaults(to: false)
+            }
+        }
+
         return migrator
     }
 }

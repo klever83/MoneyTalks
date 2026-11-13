@@ -235,6 +235,8 @@ struct ImportBatchRecord: Codable, FetchableRecord, PersistableRecord, Sendable 
     var transactionCount: Int
     var duplicateCount: Int
     var previousOpeningBalanceMinor: Int64?
+    var appliedOpeningBalanceMinor: Int64?
+    var createdAccount: Bool
     var rolledBackAt: Date?
 
     init(_ batch: ImportBatch) {
@@ -249,6 +251,8 @@ struct ImportBatchRecord: Codable, FetchableRecord, PersistableRecord, Sendable 
         transactionCount = batch.transactionCount
         duplicateCount = batch.duplicateCount
         previousOpeningBalanceMinor = batch.previousOpeningBalanceMinor
+        appliedOpeningBalanceMinor = batch.appliedOpeningBalanceMinor
+        createdAccount = batch.createdAccount
         rolledBackAt = batch.rolledBackAt
     }
 
@@ -266,6 +270,8 @@ struct ImportBatchRecord: Codable, FetchableRecord, PersistableRecord, Sendable 
             transactionCount: transactionCount,
             duplicateCount: duplicateCount,
             previousOpeningBalanceMinor: previousOpeningBalanceMinor,
+            appliedOpeningBalanceMinor: appliedOpeningBalanceMinor,
+            createdAccount: createdAccount,
             rolledBackAt: rolledBackAt
         )
     }

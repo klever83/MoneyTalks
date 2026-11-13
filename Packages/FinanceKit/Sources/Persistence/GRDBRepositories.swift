@@ -313,8 +313,7 @@ public struct GRDBImportRepository: ImportRepository {
         database.stream(ValueObservation.tracking { db in
             try ImportBatchRecord
                 .filter(Column("rolledBackAt") == nil)
-                // Партии удалённых счетов не показываются: их операции уже удалены вместе со счётом.
-                .filter(sql: "accountID IN (SELECT id FROM accounts WHERE deletedAt IS NULL)")
+                .filter(sql: Self.liveAccountsFilter)
                 .order(Column("importedAt").desc)
                 .fetchAll(db)
                 .map(\.domain)
@@ -325,16 +324,22 @@ public struct GRDBImportRepository: ImportRepository {
         try await database.writer.read { db in
             try ImportBatchRecord
                 .filter(Column("fileHash") == fileHash && Column("rolledBackAt") == nil)
+                .filter(sql: Self.liveAccountsFilter)
                 .order(Column("importedAt").desc)
                 .fetchOne(db)?
                 .domain
         }
     }
 
-    public func rollback(_ batchID: UUID) async throws {
+    /// Партии удалённых счетов не показываются и не считаются повтором: их операции удалены вместе со счётом.
+    private static let liveAccountsFilter = "accountID IN (SELECT id FROM accounts WHERE deletedAt IS NULL)"
+
+    @discardableResult
+    public func rollback(_ batchID: UUID) async throws -> [FinanceTransaction] {
         let now = Date.now
-        try await database.writer.write { db in
-            guard let batch = try ImportBatchRecord.fetchOne(db, key: batchID), batch.rolledBackAt == nil else { return }
+        return try await database.writer.write { db -> [FinanceTransaction] in
+            guard let batch = try ImportBatchRecord.fetchOne(db, key: batchID), batch.rolledBackAt == nil else { return [] }
+            var released: [FinanceTransaction] = []
             let batchTransactions = TransactionRecord.filter(Column("importBatchID") == batchID)
             // Пары переводов, в которых участвуют операции партии.
             let pairIDs = try batchTransactions
@@ -360,16 +365,31 @@ public struct GRDBImportRepository: ImportRepository {
                     partner.transferPairID = nil
                     partner.updatedAt = now
                     try partner.update(db)
+                    released.append(partner.domain)
                 }
             }
-            if let previous = batch.previousOpeningBalanceMinor {
-                _ = try AccountRecord
-                    .filter(key: batch.accountID)
-                    .updateAll(db, Column("openingBalanceMinor").set(to: previous), Column("updatedAt").set(to: now))
+            // Прежний остаток возвращается, только если с импорта он не менялся. Если его поменял более
+            // поздний импорт или пользователь, это значение новее, и возврат его бы испортил.
+            // Партии до миграции v5 поставленный остаток не хранят: для них возврат как раньше.
+            if let previous = batch.previousOpeningBalanceMinor,
+               let account = try AccountRecord.fetchOne(db, key: batch.accountID) {
+                if batch.appliedOpeningBalanceMinor.map({ $0 == account.openingBalanceMinor }) ?? true {
+                    _ = try AccountRecord
+                        .filter(key: batch.accountID)
+                        .updateAll(db, Column("openingBalanceMinor").set(to: previous), Column("updatedAt").set(to: now))
+                } else if let applied = batch.appliedOpeningBalanceMinor {
+                    // Более поздний импорт запомнил как прежний остаток тот, что поставила эта партия.
+                    // Теперь его прежний — прежний этой партии, чтобы его откат вернул верное значение.
+                    _ = try ImportBatchRecord
+                        .filter(Column("accountID") == batch.accountID && Column("rolledBackAt") == nil)
+                        .filter(Column("previousOpeningBalanceMinor") == applied && Column("id") != batch.id)
+                        .updateAll(db, Column("previousOpeningBalanceMinor").set(to: previous))
+                }
             }
             var rolledBack = batch
             rolledBack.rolledBackAt = now
             try rolledBack.update(db)
+            return released
         }
     }
 }
