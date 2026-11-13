@@ -11,6 +11,7 @@ import SwiftUI
 public struct AppRootView: View {
     private let dependencies: Dependencies
     @AppStorage(SettingsKey.appearance) private var appearance: Appearance = .dark
+    @State private var lock = AppLock()
 
     public init(dependencies: Dependencies) {
         self.dependencies = dependencies
@@ -44,11 +45,12 @@ public struct AppRootView: View {
                 AccountsScreen(repository: dependencies.accounts)
             }
             Tab("Настройки", systemImage: "gearshape") {
-                SettingsScreen {
+                SettingsScreen(lock: lock) {
                     CategoriesScreen(repository: dependencies.categories, rules: dependencies.categoryRules)
                 }
             }
         }
+        .appLock(lock)
         .preferredColorScheme(appearance.colorScheme)
     }
 }
