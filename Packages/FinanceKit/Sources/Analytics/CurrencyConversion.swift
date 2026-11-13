@@ -71,6 +71,7 @@ public enum CurrencyConversion {
             sums[Key(categoryID: total.categoryID, side: total.side), default: 0] += total.amount.minorUnits
         }
         var isApproximate = false
+        var unconverted = Set<Currency>()
         var missing = Set<ExchangeRateKey>()
         for item in daily {
             let currency = item.amount.currency
@@ -84,7 +85,7 @@ public enum CurrencyConversion {
             }
             guard let source, let target, target.rate != 0 else {
                 // Курса нет совсем: операцию не во что пересчитать, итог неполный.
-                isApproximate = true
+                unconverted.insert(source == nil ? currency : base)
                 continue
             }
             if !source.isExact || !target.isExact { isApproximate = true }
@@ -94,6 +95,9 @@ public enum CurrencyConversion {
         let result = sums
             .map { key, minor in CategoryTotal(categoryID: key.categoryID, side: key.side, amount: Money(minorUnits: minor, currency: base)) }
             .sorted { ($0.side.rawValue, $0.categoryID?.description ?? "") < ($1.side.rawValue, $1.categoryID?.description ?? "") }
-        return PeriodSummary(interval: interval, totals: result, isApproximate: isApproximate, missingRates: missing)
+        return PeriodSummary(
+            interval: interval, totals: result, isApproximate: isApproximate,
+            unconvertedCurrencies: unconverted, missingRates: missing
+        )
     }
 }

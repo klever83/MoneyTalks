@@ -53,8 +53,13 @@ final class OverviewViewModel {
         return Array(Set(summaries.flatMap(\.currencies))).sorted { $0.code < $1.code }
     }
 
-    /// Пересчёт за месяц шёл не по точным курсам на день операции.
-    var isApproximate: Bool { current?.isApproximate == true }
+    /// Пересчёт за показанные месяцы (и выбранный, и на графике) шёл не по точным курсам на день.
+    var isApproximate: Bool { summaries.contains(where: \.isApproximate) }
+
+    /// Валюты без единого курса: их операции за показанные месяцы в итоги не попали.
+    var unconvertedCurrencies: [Currency] {
+        Set(summaries.flatMap(\.unconvertedCurrencies)).sorted { $0.code < $1.code }
+    }
 
     var currency: Currency {
         if let base { return base }
@@ -181,7 +186,10 @@ public struct AnalyticsScreen: View {
                 Section {
                     summary
                 } footer: {
-                    if model.isApproximate {
+                    let unconverted = model.unconvertedCurrencies.map(\.code).joined(separator: ", ")
+                    if !unconverted.isEmpty {
+                        Text("Нет курса \(unconverted): операции в этой валюте не учтены. Курс загрузится при подключении к сети.")
+                    } else if model.isApproximate {
                         Text("≈ Курса НБ РБ на часть дней ещё нет: пересчёт по ближайшему известному курсу.")
                     }
                 }
