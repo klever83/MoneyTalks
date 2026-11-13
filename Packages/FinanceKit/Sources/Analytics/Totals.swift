@@ -49,9 +49,10 @@ public struct CategoryTotal: Hashable, Sendable {
 public struct PeriodSummary: Hashable, Sendable {
     public var interval: DateInterval
     public var totals: [CategoryTotal]
-    /// Пересчёт шёл не везде по курсу на день операции: курса на день ещё нет, взят ближайший
-    /// известный, или курса валюты нет совсем, и её операции в итог не попали.
+    /// Пересчёт шёл не везде по курсу на день операции: курса на день ещё нет, взят ближайший известный.
     public var isApproximate: Bool
+    /// Валюты, для которых нет ни одного курса: их операции в итог не попали, он неполный.
+    public var unconvertedCurrencies: Set<Currency>
     /// Курсы, которых не хватило для точного пересчёта: их стоит загрузить.
     public var missingRates: Set<ExchangeRateKey>
 
@@ -59,11 +60,13 @@ public struct PeriodSummary: Hashable, Sendable {
         interval: DateInterval,
         totals: [CategoryTotal],
         isApproximate: Bool = false,
+        unconvertedCurrencies: Set<Currency> = [],
         missingRates: Set<ExchangeRateKey> = []
     ) {
         self.interval = interval
         self.totals = totals
         self.isApproximate = isApproximate
+        self.unconvertedCurrencies = unconvertedCurrencies
         self.missingRates = missingRates
     }
 

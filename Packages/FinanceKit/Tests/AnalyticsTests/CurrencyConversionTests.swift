@@ -42,7 +42,21 @@ struct CurrencyConversionTests {
         )
         // 10 BYN + 5 USD × 3,2 + 1 USD × 3,3 = 29,30 BYN.
         #expect(summary.totals == [CategoryTotal(categoryID: food, side: .expense, amount: Money(minorUnits: 2_930, currency: .byn))])
-        #expect(!summary.isApproximate && summary.missingRates.isEmpty)
+        #expect(!summary.isApproximate && summary.missingRates.isEmpty && summary.unconvertedCurrencies.isEmpty)
+    }
+
+    @Test("Нет курса основной валюты: не учтённой считается она, а не валюта операции")
+    func missingBaseRate() {
+        let summary = CurrencyConversion.summary(
+            interval: interval,
+            base: .usd,
+            totals: [],
+            daily: [DailyCategoryTotal(categoryID: nil, side: .expense, amount: Money(minorUnits: 500, currency: .byn), day: "2026-10-06")],
+            rates: RateTable([:])
+        )
+        #expect(summary.totals.isEmpty && !summary.isApproximate)
+        #expect(summary.unconvertedCurrencies == [.usd])
+        #expect(summary.missingRates == [key(.usd, "2026-10-06")])
     }
 
     @Test("Нет курса на день — ближайший и пометка; нет курса совсем — операция не входит в итог")
@@ -59,6 +73,7 @@ struct CurrencyConversionTests {
         )
         #expect(summary.totals == [CategoryTotal(categoryID: nil, side: .expense, amount: Money(minorUnits: 1_600, currency: .byn))])
         #expect(summary.isApproximate)
+        #expect(summary.unconvertedCurrencies == [.eur])
         #expect(summary.missingRates == [key(.usd, "2026-10-06"), key(.eur, "2026-10-06")])
     }
 

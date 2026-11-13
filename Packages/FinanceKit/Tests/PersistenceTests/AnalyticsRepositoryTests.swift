@@ -119,6 +119,18 @@ struct AnalyticsRepositoryTests {
         #expect(second.incomeExpense(in: .byn).expense.minorUnits == 1000 + 1600 + 650)
         #expect(!second.isApproximate && second.missingRates.isEmpty)
 
+        // 22:30 UTC 12-го — уже 01:30 13-го в Минске: курс берётся на 13-е.
+        let lateEvening = try tx(-100, category: groceries, currency: .usd, day: 12).with {
+            $0.bookedAt = Date(timeIntervalSince1970: 1_791_844_200) // 2026-10-12 22:30 UTC
+        }
+        try await transactions.save([lateEvening])
+        let third = try #require(try await iterator.next()?.first)
+        #expect(third.missingRates == [ExchangeRateKey(currency: .usd, day: "2026-10-13")])
+        try await rates.save([ExchangeRateKey(currency: .usd, day: "2026-10-13"): Decimal(string: "3.4")!])
+        let fourth = try #require(try await iterator.next()?.first)
+        #expect(fourth.incomeExpense(in: .byn).expense.minorUnits == 1000 + 1600 + 650 + 340)
+        #expect(!fourth.isApproximate)
+
         // Без пересчёта — по валютам, как раньше.
         let perCurrency = try await summary()
         #expect(perCurrency.currencies == [.byn, .usd])
