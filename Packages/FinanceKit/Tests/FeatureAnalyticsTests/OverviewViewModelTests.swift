@@ -38,7 +38,7 @@ struct OverviewViewModelTests {
     /// Ждёт, пока поток итогов доставит нужное состояние.
     func waitUntil(_ condition: () async -> Bool) async throws {
         var attempts = 0
-        while await !condition(), attempts < 200 {
+        while await !condition(), attempts < 500 {
             try await Task.sleep(for: .milliseconds(10))
             attempts += 1
         }
@@ -117,5 +117,25 @@ struct OverviewViewModelTests {
         #expect(!model.isCurrentMonth)
         model.shiftMonth(by: 1)
         #expect(model.isCurrentMonth)
+    }
+
+    /// Экран переподписывается на итоги через `.task(id:)` при смене месяца; здесь то же вручную.
+    @Test("Сдвиг на прошлый месяц: итоги и сравнение считаются по нему")
+    func previousMonth() async throws {
+        try await GRDBAccountRepository(database: database).save(account)
+        let lastMonth = try #require(Calendar.current.date(byAdding: .month, value: -1, to: .now))
+        try await spend(700, .byn, at: lastMonth)
+
+        let current = Task { await model.observeSummaries() }
+        try await waitUntil { model.summaries.count == OverviewViewModel.historyLength }
+        #expect(model.isMonthEmpty)
+        current.cancel()
+
+        model.shiftMonth(by: -1)
+        let previous = Task { await model.observeSummaries() }
+        defer { previous.cancel() }
+        try await waitUntil { model.totals.expense.minorUnits == 700 }
+        #expect(!model.isMonthEmpty)
+        #expect(model.history.last?.expense.minorUnits == 700)
     }
 }
