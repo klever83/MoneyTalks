@@ -56,6 +56,10 @@ let package = Package(
         .testTarget(name: "DesignSystemTests", dependencies: ["DesignSystem"]),
         .testTarget(name: "FeatureAccountsTests", dependencies: ["FeatureAccounts", "Domain"]),
         .testTarget(name: "FeatureAnalyticsTests", dependencies: ["FeatureAnalytics", "Analytics", "Persistence", "Domain"]),
+        .testTarget(
+            name: "FeatureImportTests",
+            dependencies: ["FeatureImport", "StatementImport", "Persistence", "Categorization", "Domain"]
+        ),
         .testTarget(name: "FeatureSettingsTests", dependencies: ["FeatureSettings", "DesignSystem"]),
         .testTarget(name: "FeatureTransactionsTests", dependencies: ["FeatureTransactions", "Persistence", "Categorization"]),
     ]
