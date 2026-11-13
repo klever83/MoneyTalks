@@ -85,3 +85,14 @@ public struct FinanceTransaction: Identifiable, Hashable, Codable, Sendable {
         self.deletedAt = deletedAt
     }
 }
+
+public extension FinanceTransaction {
+    /// Срок, после которого холд считается отменённым банком, если выписка за его дату его не содержит.
+    static let holdExpiry: TimeInterval = 30 * 86_400
+
+    /// Холд дольше `holdExpiry`: скорее всего, его так и не провели (или провели с другой суммой,
+    /// например предавторизация на заправке), и он висит в остатке зря.
+    func isStaleHold(now: Date = .now) -> Bool {
+        isPending && deletedAt == nil && now.timeIntervalSince(bookedAt) >= Self.holdExpiry
+    }
+}
