@@ -138,9 +138,12 @@ private struct SupportedBanksView: View {
                         BatchRow(batch: batch, accountName: model.accountName(for: batch))
                             .swipeActions {
                                 Button("Отменить", systemImage: "arrow.uturn.backward", role: .destructive) {
-                                    canDeleteAccount = false
-                                    batchToRollback = batch
-                                    Task { canDeleteAccount = await model.canDeleteAccount(with: batch) }
+                                    // Сначала проверка, потом диалог: открытый confirmationDialog не обязан
+                                    // перерисовывать кнопки, а ответ для прошлой партии не попадёт в диалог новой.
+                                    Task {
+                                        canDeleteAccount = await model.canDeleteAccount(with: batch)
+                                        batchToRollback = batch
+                                    }
                                 }
                             }
                     }
