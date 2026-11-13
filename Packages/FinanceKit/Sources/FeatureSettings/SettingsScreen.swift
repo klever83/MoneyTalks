@@ -12,6 +12,9 @@ public struct SettingsScreen<Categories: View>: View {
         self.categories = categories
     }
 
+    /// Чем подтверждается владелец: Face ID, Touch ID или код-пароль.
+    private var method: DeviceAuthMethod { lock.method }
+
     public var body: some View {
         NavigationStack {
             Form {
@@ -27,7 +30,6 @@ public struct SettingsScreen<Categories: View>: View {
                 }
 
                 Section {
-                    let method = lock.method
                     Toggle(isOn: Binding(
                         get: { lock.isEnabled },
                         set: { enabled in Task { await lock.setEnabled(enabled) } }
