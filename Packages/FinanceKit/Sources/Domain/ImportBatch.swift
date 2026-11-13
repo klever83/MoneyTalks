@@ -18,6 +18,11 @@ public struct ImportBatch: Identifiable, Hashable, Sendable {
     /// Начальный остаток счёта в минимальных единицах его валюты до импорта, если импорт
     /// его заменил (более ранняя выписка): откат возвращает прежний.
     public var previousOpeningBalanceMinor: Int64?
+    /// Начальный остаток, который поставил импорт. Откат возвращает прежний, только если остаток
+    /// с тех пор не менялся: иначе его поменял более поздний импорт или пользователь, и это значение новее.
+    public var appliedOpeningBalanceMinor: Int64?
+    /// Импорт создал счёт: при откате можно предложить удалить и его.
+    public var createdAccount: Bool
     public var rolledBackAt: Date?
 
     public init(
@@ -31,6 +36,8 @@ public struct ImportBatch: Identifiable, Hashable, Sendable {
         transactionCount: Int,
         duplicateCount: Int = 0,
         previousOpeningBalanceMinor: Int64? = nil,
+        appliedOpeningBalanceMinor: Int64? = nil,
+        createdAccount: Bool = false,
         rolledBackAt: Date? = nil
     ) {
         self.id = id
@@ -43,6 +50,8 @@ public struct ImportBatch: Identifiable, Hashable, Sendable {
         self.transactionCount = transactionCount
         self.duplicateCount = duplicateCount
         self.previousOpeningBalanceMinor = previousOpeningBalanceMinor
+        self.appliedOpeningBalanceMinor = appliedOpeningBalanceMinor
+        self.createdAccount = createdAccount
         self.rolledBackAt = rolledBackAt
     }
 }
