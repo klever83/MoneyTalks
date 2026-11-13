@@ -13,8 +13,8 @@ struct BackupTests {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     }
 
-    func seeded() async throws -> (AppDatabase, Account) {
-        let database = try AppDatabase.inMemory()
+    func seeded(_ database: AppDatabase? = nil) async throws -> (AppDatabase, Account) {
+        let database = try database ?? AppDatabase.inMemory()
         let account = Account(name: "Карта", kind: .card, currency: .byn)
         try await GRDBAccountRepository(database: database).save(account)
         try await GRDBTransactionRepository(database: database).save([
@@ -42,6 +42,48 @@ struct BackupTests {
         #expect(restored.map(\.merchantRaw) == ["Кофе"])
         let accounts = try await GRDBAccountRepository(database: target).observeAccounts().first { _ in true }
         #expect(accounts?.map(\.id) == [account.id])
+    }
+
+    /// В приложении база — `DatabasePool` на диске в режиме WAL, а у backup API в WAL-приёмник свои условия.
+    @Test("Копия восстанавливается в базу на диске в режиме WAL, файл после этого читается заново")
+    func roundTripOnDiskPool() async throws {
+        let sourcePath = folder.appendingPathComponent("source.sqlite").path
+        let (source, account) = try await seeded(AppDatabase(DatabasePool(path: sourcePath)))
+        let file = folder.appendingPathComponent("copy.sqlite")
+        try await GRDBBackupService(database: source).exportBackup(to: file)
+
+        let targetPath = folder.appendingPathComponent("target.sqlite").path
+        let target = try AppDatabase(DatabasePool(path: targetPath))
+        let transactions = GRDBTransactionRepository(database: target)
+        var iterator = transactions.observeTransactions(TransactionQuery()).makeAsyncIterator()
+        #expect(try await iterator.next()?.isEmpty == true)
+
+        try await GRDBBackupService(database: target).restoreBackup(from: file)
+        let restored = try #require(try await iterator.next())
+        #expect(restored.map(\.merchantRaw) == ["Кофе"])
+        let accounts = try await GRDBAccountRepository(database: target).observeAccounts().first { _ in true }
+        #expect(accounts?.map(\.id) == [account.id])
+
+        // Отдельное соединение с тем же файлом: восстановленные данные записаны, база осталась в WAL.
+        let reopened = try DatabaseQueue(path: targetPath)
+        let (count, journalMode) = try await reopened.read { db in
+            (
+                try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM transactions") ?? 0,
+                try String.fetchOne(db, sql: "PRAGMA journal_mode") ?? ""
+            )
+        }
+        try reopened.close()
+        #expect(count == 1)
+        #expect(journalMode == "wal")
+
+        // После восстановления в базу можно писать как обычно.
+        try await GRDBTransactionRepository(database: target).save([
+            FinanceTransaction(
+                accountID: account.id, bookedAt: Date(timeIntervalSince1970: 2_000),
+                amount: Money(minorUnits: -300, currency: .byn), merchantRaw: "Чай", source: .manual
+            ),
+        ])
+        #expect(try await transactions.transactions(TransactionQuery()).count == 2)
     }
 
     @Test("Не база MoneyTalks: ошибка, текущие данные на месте")
