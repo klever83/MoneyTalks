@@ -23,7 +23,7 @@ struct FakeParser: StatementParser {
 
 @MainActor
 @Suite("Импорт: view model")
-struct ImportModelTests {
+final class ImportModelTests {
     let database: AppDatabase
     let accounts: GRDBAccountRepository
     let transactions: GRDBTransactionRepository
@@ -40,6 +40,10 @@ struct ImportModelTests {
         transactions = GRDBTransactionRepository(database: database)
         folder = FileManager.default.temporaryDirectory.appendingPathComponent("ImportModelTests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    }
+
+    deinit {
+        try? FileManager.default.removeItem(at: folder)
     }
 
     func makeModel(_ parser: FakeParser = FakeParser(rows: rows)) -> ImportModel {
@@ -109,7 +113,7 @@ struct ImportModelTests {
         #expect(batch.createdAccount)
         #expect(await model.canDeleteAccount(with: batch))
 
-        // Операция, добавленная вручную, удалила бы вместе со счётом.
+        // Операция, добавленная вручную, удалилась бы вместе со счётом.
         try await transactions.save([
             FinanceTransaction(
                 accountID: batch.accountID, bookedAt: Self.day,
