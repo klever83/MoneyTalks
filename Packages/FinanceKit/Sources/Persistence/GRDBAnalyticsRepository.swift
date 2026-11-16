@@ -58,24 +58,41 @@ public struct GRDBAnalyticsRepository: AnalyticsRepository {
           AND t.bookedAt >= ? AND t.bookedAt < ?
         """
 
+    /// Запрос итогов по категориям; с `onlyCurrency` — только в одной валюте (первый аргумент после дат).
+    /// Отдельно от выполнения, чтобы тест проверял план именно этого запроса.
+    static func totalsSQL(onlyCurrency: Bool) -> String {
+        """
+        SELECT t.currencyCode AS currencyCode,
+               t.currencyDigits AS currencyDigits,
+               COALESCE(p.id, c.id) AS categoryID,
+               \(side) AS side,
+               SUM(t.amountMinor) AS total
+        \(filter)
+        \(onlyCurrency ? "AND t.currencyCode = ?" : "")
+        GROUP BY t.currencyCode, t.currencyDigits, COALESCE(p.id, c.id), side
+        """
+    }
+
+    /// Запрос итогов по дням в валютах, кроме одной (аргумент после дат).
+    static let dailyTotalsSQL = """
+        SELECT t.currencyCode AS currencyCode,
+               t.currencyDigits AS currencyDigits,
+               COALESCE(p.id, c.id) AS categoryID,
+               \(side) AS side,
+               \(minskDay) AS day,
+               SUM(t.amountMinor) AS total
+        \(filter)
+          AND t.currencyCode != ?
+        GROUP BY t.currencyCode, t.currencyDigits, COALESCE(p.id, c.id), side, day
+        """
+
     /// Итоги в каждой валюте или только в одной.
     static func totals(_ db: Database, interval: DateInterval, onlyCurrency: Currency? = nil) throws -> [CategoryTotal] {
         var arguments: StatementArguments = [interval.start, interval.end]
-        var currencyFilter = ""
         if let onlyCurrency {
-            currencyFilter = "AND t.currencyCode = ?"
             arguments += [onlyCurrency.code]
         }
-        let rows = try Row.fetchAll(db, sql: """
-            SELECT t.currencyCode AS currencyCode,
-                   t.currencyDigits AS currencyDigits,
-                   COALESCE(p.id, c.id) AS categoryID,
-                   \(side) AS side,
-                   SUM(t.amountMinor) AS total
-            \(filter)
-            \(currencyFilter)
-            GROUP BY t.currencyCode, t.currencyDigits, COALESCE(p.id, c.id), side
-            """, arguments: arguments)
+        let rows = try Row.fetchAll(db, sql: totalsSQL(onlyCurrency: onlyCurrency != nil), arguments: arguments)
         return rows.compactMap { row -> CategoryTotal? in
             guard let side = FinanceCategory.Kind(rawValue: row["side"]) else { return nil }
             let currency = Currency(code: row["currencyCode"], minorUnitDigits: row["currencyDigits"])
@@ -94,17 +111,9 @@ public struct GRDBAnalyticsRepository: AnalyticsRepository {
 
     /// Итоги в валютах, кроме `exceptCurrency`, по дням: их пересчитывают по курсу на день.
     static func dailyTotals(_ db: Database, interval: DateInterval, exceptCurrency: Currency) throws -> [DailyCategoryTotal] {
-        let rows = try Row.fetchAll(db, sql: """
-            SELECT t.currencyCode AS currencyCode,
-                   t.currencyDigits AS currencyDigits,
-                   COALESCE(p.id, c.id) AS categoryID,
-                   \(side) AS side,
-                   \(minskDay) AS day,
-                   SUM(t.amountMinor) AS total
-            \(filter)
-              AND t.currencyCode != ?
-            GROUP BY t.currencyCode, t.currencyDigits, COALESCE(p.id, c.id), side, day
-            """, arguments: [interval.start, interval.end, exceptCurrency.code])
+        let rows = try Row.fetchAll(
+            db, sql: dailyTotalsSQL, arguments: [interval.start, interval.end, exceptCurrency.code]
+        )
         return rows.compactMap { row -> DailyCategoryTotal? in
             guard let side = FinanceCategory.Kind(rawValue: row["side"]) else { return nil }
             let currency = Currency(code: row["currencyCode"], minorUnitDigits: row["currencyDigits"])

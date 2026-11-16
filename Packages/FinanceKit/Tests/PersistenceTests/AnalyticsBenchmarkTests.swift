@@ -14,28 +14,35 @@ struct AnalyticsBenchmarkTests {
     static let count = 100_000
     static let months = 24
 
-    let database: AppDatabase
-    let calendar: Calendar
-    let latest: Date
+    /// База с данными одна на сьют: Swift Testing создаёт экземпляр сьюта на каждый тест,
+    /// а засев 100 000 строк в отладочной сборке занимает секунды.
+    struct Fixture: Sendable {
+        let database: AppDatabase
+        let calendar: Calendar
+        let latest: Date
 
-    init() async throws {
-        database = try AppDatabase.inMemory()
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = try #require(TimeZone(identifier: "Europe/Minsk"))
-        self.calendar = calendar
-        let start = try #require(calendar.date(from: DateComponents(year: 2024, month: 11, day: 1)))
-        latest = try #require(calendar.date(byAdding: .month, value: Self.months, to: start)).addingTimeInterval(-1)
+        init() async throws {
+            database = try AppDatabase.inMemory()
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = try #require(TimeZone(identifier: "Europe/Minsk"))
+            self.calendar = calendar
+            let start = try #require(calendar.date(from: DateComponents(year: 2024, month: 11, day: 1)))
+            latest = try #require(calendar.date(byAdding: .month, value: AnalyticsBenchmarkTests.months, to: start))
+                .addingTimeInterval(-1)
 
-        let accounts = [
-            Account(name: "Карта BYN", kind: .card, currency: .byn),
-            Account(name: "Карта USD", kind: .card, currency: .usd),
-            Account(name: "Наличные", kind: .cash, currency: .byn),
-        ]
-        for account in accounts {
-            try await GRDBAccountRepository(database: database).save(account)
+            let accounts = [
+                Account(name: "Карта BYN", kind: .card, currency: .byn),
+                Account(name: "Карта USD", kind: .card, currency: .usd),
+                Account(name: "Наличные", kind: .cash, currency: .byn),
+            ]
+            for account in accounts {
+                try await GRDBAccountRepository(database: database).save(account)
+            }
+            try await AnalyticsBenchmarkTests.seed(database.writer, accounts: accounts, from: start, to: latest)
         }
-        try await Self.seed(database.writer, accounts: accounts, from: start, to: latest)
     }
+
+    static let fixture = Task { try await Fixture() }
 
     /// Синтетические операции: 85 % расходов по категориям, доходы, переводы, валюта, удалённые.
     /// Генератор детерминированный, чтобы замеры были сравнимы между прогонами.
@@ -105,13 +112,14 @@ struct AnalyticsBenchmarkTests {
 
     /// Итоги за те же полгода, что показывает Обзор, и время их подсчёта (лучшее из нескольких прогонов).
     func measure(base: Currency?) async throws -> (summaries: [PeriodSummary], best: Duration) {
-        let intervals = Totals.months(endingAt: latest, count: 6, calendar: calendar)
+        let fixture = try await Self.fixture.value
+        let intervals = Totals.months(endingAt: fixture.latest, count: 6, calendar: fixture.calendar)
         var best = Duration.seconds(1_000)
         var summaries: [PeriodSummary] = []
         for _ in 0..<5 {
             let clock = ContinuousClock()
             let started = clock.now
-            summaries = try await database.writer.read { db in
+            summaries = try await fixture.database.writer.read { db in
                 try intervals.map { try GRDBAnalyticsRepository.summary(db, interval: $0, base: base) }
             }
             best = min(best, clock.now - started)
@@ -140,23 +148,25 @@ struct AnalyticsBenchmarkTests {
         #expect(best < .seconds(2))
     }
 
-    @Test("Выборка итогов по периоду идёт по индексу даты, а не полным проходом")
+    /// План проверяется на запросах, которые выполняет репозиторий, а не на копии. Без `ANALYZE`
+    /// статистики нет и план от данных не зависит, поэтому база пустая.
+    @Test("Итоги по периоду выбираются по индексу даты, а не полным проходом")
     func usesDateIndex() async throws {
-        let plan = try await database.writer.read { db in
-            try Row.fetchAll(db, sql: """
-                EXPLAIN QUERY PLAN
-                SELECT t.currencyCode, SUM(t.amountMinor)
-                FROM transactions t
-                LEFT JOIN categories c ON c.id = t.categoryID
-                LEFT JOIN categories p ON p.id = c.parentID
-                WHERE t.deletedAt IS NULL
-                  AND t.kind != 'transfer'
-                  AND t.bookedAt >= ? AND t.bookedAt < ?
-                GROUP BY t.currencyCode
-                """, arguments: [latest.addingTimeInterval(-30 * 86_400), latest])
-                .map { $0["detail"] as String }
+        let database = try AppDatabase.inMemory()
+        let queries = [
+            ("итоги", GRDBAnalyticsRepository.totalsSQL(onlyCurrency: false), 2),
+            ("итоги в одной валюте", GRDBAnalyticsRepository.totalsSQL(onlyCurrency: true), 3),
+            ("итоги по дням", GRDBAnalyticsRepository.dailyTotalsSQL, 3),
+        ]
+        for (name, sql, argumentCount) in queries {
+            let values: [(any DatabaseValueConvertible)?] = [Date.distantPast, Date.distantFuture, "USD"]
+            let arguments = StatementArguments(Array(values.prefix(argumentCount)))
+            let plan = try await database.writer.read { db in
+                try Row.fetchAll(db, sql: "EXPLAIN QUERY PLAN " + sql, arguments: arguments)
+                    .map { $0["detail"] as String }
+            }
+            print("План запроса (\(name)): \(plan)")
+            #expect(plan.contains { $0.contains("USING INDEX transactions_booked_at") }, "\(name): \(plan)")
         }
-        print("План запроса итогов: \(plan)")
-        #expect(plan.contains { $0.contains("transactions_booked_at") })
     }
 }
