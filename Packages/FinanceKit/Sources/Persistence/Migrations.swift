@@ -152,6 +152,12 @@ extension AppDatabase {
             }
         }
 
+        migrator.registerMigration("v8-transactions-date-index") { db in
+            // Итоги Обзора и выборки по периоду без счёта фильтруют только по дате (#12):
+            // без этого индекса каждый месяц графика — полный проход по операциям.
+            try db.create(index: "transactions_booked_at", on: "transactions", columns: ["bookedAt"])
+        }
+
         return migrator
     }
 }
