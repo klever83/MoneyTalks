@@ -135,6 +135,15 @@ final class ImportModel {
 
     // MARK: - Шаги
 
+    /// Файл, который система передала через «Открыть в MoneyTalks»: это копия во `Documents/Inbox`,
+    /// после чтения она больше не нужна.
+    nonisolated static func isInboxCopy(_ url: URL) -> Bool {
+        let components = url.standardizedFileURL.pathComponents
+        guard let index = components.lastIndex(of: "Inbox"), index > 0 else { return false }
+        return components[index - 1] == "Documents" && index == components.count - 2
+    }
+
+    /// - Parameter url: файл из «Выбрать файл» или копия из «Открыть в MoneyTalks»; копия удаляется после чтения.
     func open(_ url: URL) async {
         reset()
         phase = .working
@@ -144,6 +153,7 @@ final class ImportModel {
             let (document, hash) = try await Task.detached(priority: .userInitiated) {
                 let access = url.startAccessingSecurityScopedResource()
                 defer { if access { url.stopAccessingSecurityScopedResource() } }
+                defer { if Self.isInboxCopy(url) { try? FileManager.default.removeItem(at: url) } }
                 let data = try Data(contentsOf: url)
                 return (try Self.readDocument(data, fileName: name), Self.fileHash(data))
             }.value
