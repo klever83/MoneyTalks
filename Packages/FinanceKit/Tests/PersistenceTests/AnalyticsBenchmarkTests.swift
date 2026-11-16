@@ -135,7 +135,7 @@ struct AnalyticsBenchmarkTests {
         print("Бенчмарк аналитики: пересчёт в BYN, 6 месяцев, \(Self.count) операций — \(best)")
         #expect(summaries.count == 6)
         #expect(summaries.allSatisfy { $0.unconvertedCurrencies.isEmpty })
-        #expect(summaries.contains(where: \.isApproximate))
+        #expect(summaries.contains { $0.isApproximate })
         #expect(summaries.allSatisfy { $0.currencies == [.byn] })
         #expect(best < .seconds(2))
     }
