@@ -34,7 +34,7 @@
 			</array>
 		</dict>
 	</array>
-	<!-- Система передаёт копию файла в Documents/Inbox, импорт удаляет её после чтения. -->
+	<!-- Система передаёт копию файла (tmp/<bundle id>-Inbox или Documents/Inbox), импорт удаляет её после чтения. -->
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<false/>
 </dict>

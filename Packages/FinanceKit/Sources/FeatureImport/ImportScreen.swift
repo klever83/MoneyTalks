@@ -47,13 +47,18 @@ public struct ImportScreen: View {
                 }
         }
         .errorAlert($model.errorMessage)
-        .onChange(of: incomingFile, initial: true) { _, url in
-            guard let url else { return }
-            incomingFile = nil
-            Task { await model.open(url) }
-        }
+        .onChange(of: incomingFile, initial: true) { openIncomingFile() }
+        .onChange(of: model.phase) { openIncomingFile() }
         .task { await model.observeAccounts() }
         .task { await model.observeBatches() }
+    }
+
+    /// Входящий файл открывается, когда экран свободен: во время чтения или сохранения он ждёт,
+    /// иначе `open` сбросил бы экран посреди записи и результат прошлого импорта потерялся бы.
+    private func openIncomingFile() {
+        guard let url = incomingFile, model.phase != .working else { return }
+        incomingFile = nil
+        Task { await model.open(url) }
     }
 
     @ViewBuilder
