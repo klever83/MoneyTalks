@@ -8,6 +8,8 @@ import UniformTypeIdentifiers
 public struct ImportScreen: View {
     @State private var model: ImportModel
     @State private var isPickingFile = false
+    /// Файл, открытый в MoneyTalks из другого приложения: экран сразу начинает его импорт.
+    @Binding private var incomingFile: URL?
     private let banks: [BankInfo]
 
     public init(
@@ -16,9 +18,11 @@ public struct ImportScreen: View {
         accounts: any AccountRepository,
         transactions: any TransactionRepository,
         imports: any ImportRepository,
-        categorizer: any TransactionCategorizer
+        categorizer: any TransactionCategorizer,
+        incomingFile: Binding<URL?> = .constant(nil)
     ) {
         self.banks = banks
+        _incomingFile = incomingFile
         _model = State(initialValue: ImportModel(
             registry: registry,
             accounts: accounts,
@@ -43,6 +47,11 @@ public struct ImportScreen: View {
                 }
         }
         .errorAlert($model.errorMessage)
+        .onChange(of: incomingFile, initial: true) { _, url in
+            guard let url else { return }
+            incomingFile = nil
+            Task { await model.open(url) }
+        }
         .task { await model.observeAccounts() }
         .task { await model.observeBatches() }
     }
@@ -130,7 +139,7 @@ private struct SupportedBanksView: View {
             Section {
                 Button("Выбрать файл выписки", systemImage: "doc.badge.plus", action: pickFile)
             } footer: {
-                Text("Выгрузите выписку в приложении или интернет-банке в PDF и выберите файл.")
+                Text("Выгрузите выписку в приложении или интернет-банке в PDF и выберите файл. Или нажмите «Поделиться» в приложении банка и откройте файл в MoneyTalks.")
             }
             if !model.batches.isEmpty {
                 Section {

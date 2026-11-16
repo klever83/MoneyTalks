@@ -161,6 +161,27 @@ final class ImportModelTests {
         #expect(model.plan?.newTransactions.count == 2)
     }
 
+    @Test("Файл из «Открыть в MoneyTalks»: копия в Documents/Inbox удаляется после чтения, обычный файл остаётся")
+    func inboxCopy() async throws {
+        let inbox = folder.appendingPathComponent("Documents/Inbox", isDirectory: true)
+        try FileManager.default.createDirectory(at: inbox, withIntermediateDirectories: true)
+        let copy = inbox.appendingPathComponent("statement.csv")
+        try Data("Дата;Сумма\n".utf8).write(to: copy)
+        #expect(ImportModel.isInboxCopy(copy))
+        #expect(!ImportModel.isInboxCopy(folder.appendingPathComponent("Inbox/statement.csv")))
+        #expect(!ImportModel.isInboxCopy(inbox.appendingPathComponent("nested/statement.csv")))
+
+        let model = makeModel()
+        await model.open(copy)
+        #expect(model.phase == .preview)
+        #expect(!FileManager.default.fileExists(atPath: copy.path))
+
+        let picked = try file()
+        await model.open(picked)
+        #expect(model.phase == .preview)
+        #expect(FileManager.default.fileExists(atPath: picked.path))
+    }
+
     @Test("Ошибки: неподдерживаемый файл и выписка без операций")
     func failures() async throws {
         let model = makeModel(FakeParser(rows: []))

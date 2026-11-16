@@ -199,6 +199,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/MoneyTalks-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = MoneyTalks;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Face ID защищает доступ к вашим финансам в MoneyTalks.";
@@ -230,6 +231,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/MoneyTalks-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = MoneyTalks;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Face ID защищает доступ к вашим финансам в MoneyTalks.";
