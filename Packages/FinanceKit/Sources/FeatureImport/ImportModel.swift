@@ -135,12 +135,19 @@ final class ImportModel {
 
     // MARK: - Шаги
 
-    /// Файл, который система передала через «Открыть в MoneyTalks»: это копия во `Documents/Inbox`,
-    /// после чтения она больше не нужна.
-    nonisolated static func isInboxCopy(_ url: URL) -> Bool {
-        let components = url.standardizedFileURL.pathComponents
-        guard let index = components.lastIndex(of: "Inbox"), index > 0 else { return false }
-        return components[index - 1] == "Documents" && index == components.count - 2
+    /// Файл, который система передала через «Открыть в MoneyTalks»: это копия, после чтения она
+    /// больше не нужна. Приложения со сценами получают её в `tmp/<bundle id>-Inbox/`, старые —
+    /// в `Documents/Inbox/`; принимаются оба места.
+    nonisolated static func isInboxCopy(
+        _ url: URL, temporaryDirectory: URL = FileManager.default.temporaryDirectory
+    ) -> Bool {
+        let folder = url.standardizedFileURL.resolvingSymlinksInPath().deletingLastPathComponent()
+        let parent = folder.deletingLastPathComponent()
+        if folder.lastPathComponent == "Inbox", parent.lastPathComponent == "Documents" {
+            return true
+        }
+        let tmp = temporaryDirectory.standardizedFileURL.resolvingSymlinksInPath()
+        return folder.lastPathComponent.hasSuffix("-Inbox") && parent.path == tmp.path
     }
 
     /// - Parameter url: файл из «Выбрать файл» или копия из «Открыть в MoneyTalks»; копия удаляется после чтения.

@@ -170,6 +170,17 @@ final class ImportModelTests {
         #expect(ImportModel.isInboxCopy(copy))
         #expect(!ImportModel.isInboxCopy(folder.appendingPathComponent("Inbox/statement.csv")))
         #expect(!ImportModel.isInboxCopy(inbox.appendingPathComponent("nested/statement.csv")))
+        // Приложения со сценами получают копию в tmp/<bundle id>-Inbox.
+        let tmp = folder.appendingPathComponent("tmp", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: tmp.appendingPathComponent("by.klever83.MoneyTalks-Inbox"), withIntermediateDirectories: true
+        )
+        #expect(ImportModel.isInboxCopy(
+            tmp.appendingPathComponent("by.klever83.MoneyTalks-Inbox/statement.pdf"), temporaryDirectory: tmp
+        ))
+        #expect(!ImportModel.isInboxCopy(
+            folder.appendingPathComponent("by.klever83.MoneyTalks-Inbox/statement.pdf"), temporaryDirectory: tmp
+        ))
 
         let model = makeModel()
         await model.open(copy)
