@@ -4,9 +4,8 @@ import Domain
 public enum UncategorizedReview {
     public struct Group: Identifiable, Sendable {
         public enum ID: Hashable, Sendable {
-            /// Операции одного мерчанта (ключ `MerchantNormalizer.key`) с одним знаком суммы:
-            /// покупки и возвраты требуют категорий разного типа.
-            case merchant(key: String, isExpense: Bool)
+            /// Операции одного мерчанта (ключ `MerchantNormalizer.key`), покупки вместе с возвратами.
+            case merchant(String)
             /// Операция без мерчанта в описании: переводы, ЕРИП, платежи из приложения банка.
             /// За что она, по выписке не видно, поэтому разбирается отдельно.
             case single(FinanceTransaction.ID)
@@ -19,8 +18,10 @@ public enum UncategorizedReview {
         public let transactions: [FinanceTransaction]
         /// Суммы по валютам, сначала самая большая по модулю.
         public let totals: [Money]
-
-        public var isExpense: Bool { transactions.first?.amount.isNegative ?? true }
+        /// Категории расходов, а не доходов. У мерчанта с покупками (среди всех операций, не только
+        /// ожидающих) и возвраты получают категорию расходов: возврат в «Кафе» уменьшает расход на кафе,
+        /// так их считает аналитика и так раскладывает правило мерчанта при импорте.
+        public let isExpense: Bool
 
         /// Для группы можно создать правило «всегда так»: у неё есть мерчант.
         public var canCreateRule: Bool {
@@ -41,24 +42,36 @@ public enum UncategorizedReview {
 
     /// Группы операций без категории: сначала мерчанты с наибольшим числом операций,
     /// потом операции без мерчанта, новые сверху.
+    /// - Parameter transactions: все операции: по ним видно, есть ли у мерчанта покупки.
     public static func groups(_ transactions: [FinanceTransaction]) -> [Group] {
         let pending = transactions.filter(isPending).sorted { $0.bookedAt > $1.bookedAt }
         var order: [Group.ID] = []
         var buckets: [Group.ID: [FinanceTransaction]] = [:]
         for transaction in pending {
-            let id: Group.ID = AlwaysRule.merchantKey(for: transaction)
-                .map { .merchant(key: $0, isExpense: transaction.amount.isNegative) }
-                ?? .single(transaction.id)
+            let id: Group.ID = AlwaysRule.merchantKey(for: transaction).map { .merchant($0) } ?? .single(transaction.id)
             if buckets[id] == nil { order.append(id) }
             buckets[id, default: []].append(transaction)
         }
+        let pendingKeys = Set(order.compactMap { id -> String? in
+            if case .merchant(let key) = id { key } else { nil }
+        })
+        let keysWithPurchases = Set(transactions.compactMap { transaction -> String? in
+            guard transaction.amount.isNegative, transaction.kind != .transfer, transaction.deletedAt == nil else { return nil }
+            let key = MerchantNormalizer.key(transaction.merchantRaw)
+            return pendingKeys.contains(key) ? key : nil
+        })
         let groups = order.map { id in
             let items = buckets[id] ?? []
+            let isExpense: Bool = switch id {
+            case .merchant(let key): keysWithPurchases.contains(key)
+            case .single: items.first?.amount.isNegative ?? true
+            }
             return Group(
                 id: id,
                 title: items.first?.merchantNormalized ?? "",
                 transactions: items,
-                totals: totals(of: items)
+                totals: totals(of: items),
+                isExpense: isExpense
             )
         }
         let merchants = groups.filter(\.canCreateRule).sorted { lhs, rhs in
@@ -72,34 +85,40 @@ public enum UncategorizedReview {
 
     /// Категория для всей группы.
     ///
-    /// С `always` и мерчантом получается правило «всегда так»: оно раскладывает все операции мерчанта
-    /// без категории (так же, как сделает при следующем импорте), и они не закрепляются, ведь это
-    /// решение правила. Без правила категория закрепляется за операциями группы как ручной выбор.
+    /// С `always` и мерчантом получается правило «всегда так» для мерчанта, а операции группы
+    /// (это все его операции без категории) не закрепляются: так же их разложит правило при импорте.
+    /// У мерчанта без покупок правило только для поступлений: доходная категория не должна
+    /// достаться будущим покупкам. Без правила категория закрепляется за операциями группы как ручной выбор.
     public static func assign(
         _ group: Group,
         to categoryID: FinanceCategory.ID,
         always: Bool,
-        rules: [CategoryRule],
-        transactions: [FinanceTransaction]
+        rules: [CategoryRule]
     ) -> Assignment {
-        if always, group.canCreateRule, let sample = group.transactions.first,
-           let rule = AlwaysRule.make(for: sample, categoryID: categoryID, existing: rules) {
-            let updated = transactions
-                .filter { isPending($0) && rule.matches($0) }
-                .map { transaction in
-                    var transaction = transaction
-                    transaction.categoryID = categoryID
-                    return transaction
-                }
-            return Assignment(rule: rule, updated: updated)
+        if always, group.canCreateRule, let rule = rule(for: group, categoryID: categoryID, existing: rules) {
+            return Assignment(rule: rule, updated: group.transactions.map { transaction in
+                var transaction = transaction
+                transaction.categoryID = categoryID
+                return transaction
+            })
         }
-        let updated = group.transactions.map { transaction in
+        return Assignment(rule: nil, updated: group.transactions.map { transaction in
             var transaction = transaction
             transaction.categoryID = categoryID
             transaction.categoryLocked = true
             return transaction
-        }
-        return Assignment(rule: nil, updated: updated)
+        })
+    }
+
+    private static func rule(for group: Group, categoryID: FinanceCategory.ID, existing: [CategoryRule]) -> CategoryRule? {
+        guard let sample = group.transactions.first,
+              var rule = AlwaysRule.make(for: sample, categoryID: categoryID, existing: existing) else { return nil }
+        guard !group.isExpense else { return rule }
+        rule.conditions.append(.amountSign(.positive))
+        let previous = existing.first { $0.origin == .user && $0.conditions == rule.conditions }
+        rule.id = previous?.id ?? CategoryRule.ID()
+        rule.priority = previous?.priority ?? 0
+        return rule
     }
 
     private static func totals(of transactions: [FinanceTransaction]) -> [Money] {

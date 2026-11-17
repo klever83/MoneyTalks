@@ -9,8 +9,6 @@ import SwiftUI
 @Observable
 final class UncategorizedViewModel {
     private(set) var groups: [UncategorizedReview.Group] = []
-    /// Все операции: правило «всегда так» раскладывает и те, что не попали в группу.
-    private var all: [FinanceTransaction] = []
     var errorMessage: String?
 
     private let transactionRepository: any TransactionRepository
@@ -27,8 +25,8 @@ final class UncategorizedViewModel {
 
     func observe() async {
         do {
+            // Все операции, а не только без категории: по ним видно, есть ли у мерчанта покупки.
             for try await items in transactionRepository.observeTransactions(TransactionQuery()) {
-                all = items
                 groups = UncategorizedReview.groups(items)
             }
         } catch {
@@ -40,8 +38,7 @@ final class UncategorizedViewModel {
         do {
             let assignment = UncategorizedReview.assign(
                 group, to: categoryID, always: always,
-                rules: try await ruleRepository.rules(),
-                transactions: all
+                rules: try await ruleRepository.rules()
             )
             if let rule = assignment.rule {
                 try await ruleRepository.save(rule)
