@@ -149,6 +149,15 @@ struct PriorbankAccountStatementTests {
         #expect(BelarusbankParser().confidence(for: document) < 0.5)
     }
 
+    @Test("Перевод на счёт в Приорбанке в чужой выписке не делает её выпиской Приорбанка")
+    func foreignStatementWithPriorbankDetails() throws {
+        var pdf = PDFFixture()
+        pdf.text("Выписка по счету", x: 20, y: 20)
+        pdf.text("07.10.2026 Перевод на счёт BY12PJCB30140000081001234933 ОАО ПРИОРБАНК -5.00 BYN", x: 20, y: 40)
+        let document = try document(pdf)
+        #expect(PriorbankParser().confidence(for: document) < 0.5)
+    }
+
     @Test("Операции, суммы, описания и шапка")
     func parsesStatement() throws {
         let statement = try parse(Self.statement())
