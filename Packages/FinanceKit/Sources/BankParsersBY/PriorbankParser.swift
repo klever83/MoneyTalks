@@ -3,6 +3,8 @@ import Foundation
 import StatementImport
 
 /// Приорбанк: «Выписка по контракту» из интернет-банка, PDF (экспорт из Word).
+/// «Выписку по счету» (другой документ, по текущему счёту за любой период) разбирает
+/// `PriorbankAccountStatement`: в списке банков это тот же Приорбанк.
 ///
 /// Строка операции: дата и время, операция (тип, страна, город, мерчант), сумма и валюта операции,
 /// дата проведения, комиссия, обороты в валюте счёта. Текст в PDF чистый, поэтому строки
@@ -26,11 +28,14 @@ public struct PriorbankParser: StatementParser {
         if text.contains("prior.by") { score += 0.6 }
         if text.contains("Выписка по контракту") { score += 0.3 }
         if text.contains("Обороты") { score += 0.1 }
-        return min(score, 1)
+        return max(min(score, 1), PriorbankAccountStatement.confidence(text: text))
     }
 
     public func parse(_ document: StatementDocument) throws(ParseError) -> ParsedStatement {
         guard case let .layout(layout) = document.content else { throw .unsupportedFormat }
+        if PriorbankAccountStatement.matches(layout.text) {
+            return try PriorbankAccountStatement.parse(layout)
+        }
         let lines = layout.lines
 
         // В контракте может быть несколько счетов в разных валютах, у каждого свой блок
