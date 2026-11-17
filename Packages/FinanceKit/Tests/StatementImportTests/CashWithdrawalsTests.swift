@@ -31,6 +31,12 @@ struct CashWithdrawalsTests {
         #expect(!CashWithdrawals.isCashOperation(transaction(-1_145, "Безналичная оплата SHOP GREEN", mcc: 5411)))
         #expect(!CashWithdrawals.isCashOperation(transaction(-500, "Cashback партнёра")))
         #expect(!CashWithdrawals.isCashOperation(transaction(-500, "Retail BLR MINSK ATMOSFERA")))
+        // Приорбанк, выписка по счёту: банкомат словом в названии, взнос через терминал.
+        #expect(CashWithdrawals.isCashOperation(transaction(-20_000, "CBU-301/14 BAPB ATM BLR, GOMEL")))
+        #expect(CashWithdrawals.isCashOperation(transaction(30_000, "CASH-IN 123 BLR, GOMEL")))
+        #expect(CashWithdrawals.isCashOperation(transaction(250_000, "PST 456 BLR, MINSK")))
+        #expect(CashWithdrawals.isCashOperation(transaction(100_000, "Взнос наличными")))
+        #expect(!CashWithdrawals.isCashOperation(transaction(-1_000, "PSTRUZHKA BLR, MINSK")))
     }
 
     @Test("Снятие становится переводом в кошелёк, в расходы не попадает")
