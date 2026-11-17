@@ -47,7 +47,7 @@ struct PriorbankAccountStatementTests {
         pdf.text("Клиент Иван Тестов", x: 47, y: 54)
         pdf.text("Тип договора 81 - Договор текущего(расчетного) банковского счета в BYN с использованием карточки", x: 47, y: 62)
         pdf.text("Договор № 0000001 от 01.01.2020", x: 47, y: 70)
-        pdf.text("Номер счета в формате IBAN: BY00PJCB30140000000012340933", x: 47, y: 78)
+        pdf.text("Номер счета в формате IBAN: BY00PJCB30140000081001234933", x: 47, y: 78)
         pdf.text("Код валюты - 933 (Белорусский рубль)", x: 47, y: 86)
         pdf.text("Выписка по счету с 06.11.2024 по 06.12.2024", x: 47, y: 94)
         pdf.text("Дата последней операции 06.12.2024", x: 47, y: 102)
@@ -153,7 +153,8 @@ struct PriorbankAccountStatementTests {
     func parsesStatement() throws {
         let statement = try parse(Self.statement())
         #expect(statement.accountHint.currency == .byn)
-        #expect(statement.accountHint.maskedNumber?.count == 4)
+        // Код валюты на конце IBAN в маску не входит: это последние цифры номера договора.
+        #expect(statement.accountHint.maskedNumber == "1234")
         #expect(statement.openingBalance == Money(minorUnits: 201_625, currency: .byn))
         #expect(statement.closingBalance == Money(minorUnits: 2_065, currency: .byn))
 

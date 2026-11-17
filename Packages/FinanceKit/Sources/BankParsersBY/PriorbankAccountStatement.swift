@@ -39,7 +39,8 @@ enum PriorbankAccountStatement {
         let lines = layout.lines
         let text = layout.text
 
-        guard let currency = currency(in: text) else { throw .missingColumn("Код валюты") }
+        guard let found = Self.currency(in: text) else { throw .missingColumn("Код валюты") }
+        let (currency, numericCode) = found
         var period: DateInterval?
         if let match = text.firstMatch(of: /Выписка по сч[её]ту с (\d{2}\.\d{2}\.\d{4}) по (\d{2}\.\d{2}\.\d{4})/),
            let start = BYDate.date(String(match.1)), let end = BYDate.date(String(match.2)) {
@@ -153,7 +154,7 @@ enum PriorbankAccountStatement {
         }
 
         return ParsedStatement(
-            accountHint: AccountHint(maskedNumber: account.map { String($0.suffix(4)) }, currency: currency),
+            accountHint: AccountHint(maskedNumber: account.map { maskedNumber(iban: $0, numericCode: numericCode) }, currency: currency),
             period: period,
             openingBalance: opening.map { Money($0, currency: currency) },
             closingBalance: closing.map { Money($0, currency: currency) },
@@ -266,14 +267,26 @@ enum PriorbankAccountStatement {
     // MARK: - Числа
 
     /// «Код валюты - 933 (Белорусский рубль)» или «… счета в BYN …» в типе договора.
-    private static func currency(in text: String) -> Currency? {
-        if let match = text.firstMatch(of: /Код валюты - (\d{3})/), let code = currencyCodes[String(match.1)] {
-            return Currency(code: code)
+    /// Вместе с валютой — её цифровой код, если он есть в шапке.
+    private static func currency(in text: String) -> (Currency, numericCode: String?)? {
+        let numeric = text.firstMatch(of: /Код валюты - (\d{3})/).map { String($0.1) }
+        if let numeric, let code = currencyCodes[numeric] {
+            return (Currency(code: code), numeric)
         }
         if let match = text.firstMatch(of: /Тип договора[^\n]*? в ([A-Z]{3})\b/) {
-            return Currency(code: String(match.1))
+            return (Currency(code: String(match.1)), numeric)
         }
         return nil
+    }
+
+    /// Последние 4 цифры счёта для сопоставления со счётом приложения. IBAN Приорбанка кончается
+    /// цифровым кодом валюты («…933»), а перед ним идёт номер договора: берём 4 цифры перед кодом,
+    /// иначе у двух рублёвых счетов маски почти всегда совпадали бы.
+    static func maskedNumber(iban: String, numericCode: String?) -> String {
+        if let numericCode, iban.hasSuffix(numericCode) {
+            return String(iban.dropLast(numericCode.count).suffix(4))
+        }
+        return String(iban.suffix(4))
     }
 
     /// Остаток из строки «Входящий остаток | дебет | кредит»: положительный остаток стоит в кредите.
