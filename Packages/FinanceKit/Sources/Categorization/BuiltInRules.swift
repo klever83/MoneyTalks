@@ -41,7 +41,9 @@ public enum BuiltInRules {
             "DODO PIZZA", "DODOPIZZA", "ДОДО ПИЦЦА",
             "YANDEX.EDA", "YANDEX EDA", "YANDEXEDA", "ЯНДЕКС ЕДА", "JUST-EAT", "JUSTEAT", "DELIVIO",
             "GOLFSTRIM", "BATSKI", "RESTORAN BYSTROGO", "RESTORAN PBO", "SALATEIRA", "PIVOVAR",
-            "LAPASTERIYA", "BURGERLAB", "KHINKALNYA", "HINKALNYA", "ХИНКАЛЬНАЯ",
+            "LAPASTERIYA", "BURGERLAB", "KHINKALNYA", "HINKALNYA", "ХИНКАЛЬНАЯ", "ELEMENTUM",
+            // Бар сети «7 пятниц»: длиннее, чем магазины сети «7PYATNITS» в продуктах, поэтому важнее.
+            "BAR -7PYATNITS",
         ], ["KFC", "LIDO", "ЛИДО", "SUBWAY"]),
         ("taxi", [
             "YANDEX GO", "YANDEX*GO", "YANDEX.GO", "YANDEX.TAXI", "ЯНДЕКС GO", "ЯНДЕКС ТАКСИ",
@@ -85,8 +87,8 @@ public enum BuiltInRules {
             "COURSERA", "UDEMY", "SKILLBOX", "DUOLINGO",
         ], []),
         ("marketplaces", [
-            "WILDBERRIES", "OZON", "LAMODA", "ALIEXPRESS", "21VEK", "21 VEK", "KUFAR",
-        ], []),
+            "WILDBERRIES", "LAMODA", "ALIEXPRESS", "21VEK", "21 VEK", "KUFAR",
+        ], ["OZON", "ОЗОН"]),
         ("beauty", [
             "ZOLOTOE YABLOKO", "GOLDAPPLE", "ЗОЛОТОЕ ЯБЛОКО", "PERFUMES", "COSMETICS", "KOSMETIKA", "КОСМЕТИКА",
             "LETUAL", "ЛЭТУАЛЬ", "SALON KRASOTY", "САЛОН КРАСОТЫ", "BARBERSHOP", "PARIKMAKHER", "ПАРИКМАХЕР",
@@ -101,11 +103,11 @@ public enum BuiltInRules {
             "ZEON", "ELEKTRONIKA", "ЭЛЕКТРОНИКА", "5 ELEMENT", "5ELEMENT", "5 ЭЛЕМЕНТ", "ELECTROSILA", "ЭЛЕКТРОСИЛА",
         ], ["DNS"]),
         ("betting", [
-            "PM.BY", "PARIMATCH", "FONBET", "BETERA", "BIZONBET", "MAXLINE", "BETCITY",
-        ], []),
+            "PARIMATCH", "FONBET", "BETERA", "BIZONBET", "MAXLINE", "BETCITY",
+        ], ["PM.BY"]),
         ("gifts", [
-            "FLOWER", "BUKETNAYA", "ЦВЕТЫ",
-        ], []),
+            "BUKETNAYA", "ЦВЕТЫ",
+        ], ["FLOWER", "FLOWERS"]),
     ]
 
     private static let merchantRules: [CategoryRule] = {
@@ -182,7 +184,7 @@ public enum BuiltInRules {
         ("health", ["DENT", "KLINIKA", "КЛИНИКА", "MEDICAL"]),
         ("travel", ["HOTEL", "ОТЕЛЬ", "HOSTEL", "ХОСТЕЛ", "SUITES", "AIRLINES"]),
         ("sport", ["GYM"]),
-        ("beauty", ["MANIKYUR", "МАНИКЮР", "NAIL", "SPA"]),
+        ("beauty", ["MANIKYUR", "МАНИКЮР", "NAIL", "SPA", "BROW", "BROWS", "LASH"]),
     ]
 
     private static let keywordRules: [CategoryRule] = keywords.flatMap { entry in

@@ -36,6 +36,10 @@ struct CashWithdrawalsTests {
         #expect(CashWithdrawals.isCashOperation(transaction(30_000, "CASH-IN 123 BLR, GOMEL")))
         #expect(CashWithdrawals.isCashOperation(transaction(250_000, "PST 456 BLR, MINSK")))
         #expect(CashWithdrawals.isCashOperation(transaction(100_000, "Взнос наличными")))
+        // Банкомат другого банка с его кодом, в том числе в магазине («ALMI» не делает его покупкой).
+        #expect(CashWithdrawals.isCashOperation(transaction(-5_000, "ATMTBK GM11 GOMEL TEST")))
+        #expect(CashWithdrawals.isCashOperation(transaction(-5_000, "ATMALF GM08 ALMI")))
+        #expect(!CashWithdrawals.isCashOperation(transaction(-500, "ATMOS BAR BLR, MINSK")))
         #expect(!CashWithdrawals.isCashOperation(transaction(-1_000, "PSTRUZHKA BLR, MINSK")))
     }
 

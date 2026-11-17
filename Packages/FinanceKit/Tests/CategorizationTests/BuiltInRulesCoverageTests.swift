@@ -32,6 +32,9 @@ struct BuiltInRulesCoverageTests {
         ("SHOP -MARK FORMEL- BLR, GOMEL", "clothes"),
         ("WWW.DODOPIZZA.BY BLR, MINSK", "cafes"),
         ("LABORATORIYA HELIX BLR, GOMEL", "health"),
+        ("BAR -7PYATNITS- BLR, GOMEL", "cafes"),
+        ("ELEMENTUM BLR, GOMEL", "cafes"),
+        ("FLOWERS.BY BLR, MINSK", "gifts"),
     ])
     func merchants(merchant: String, expected: String) {
         #expect(key(merchant) == FinanceCategory.systemID(for: expected))
@@ -45,6 +48,7 @@ struct BuiltInRulesCoverageTests {
         ("AZS N20 BAPB BLR, GOMEL", "transport"),
         ("PT CHSUP TEST-DENT BLR, GOMEL", "health"),
         ("STELLA TEST HOTEL", "travel"),
+        ("BROW BAR TEST BLR, MINSK", "beauty"),
     ])
     func keywords(merchant: String, expected: String) {
         #expect(key(merchant) == FinanceCategory.systemID(for: expected))
@@ -55,7 +59,9 @@ struct BuiltInRulesCoverageTests {
         #expect(key("BAR TEST", mcc: 5411) == FinanceCategory.systemID(for: "groceries"))
     }
 
-    @Test("Общие слова только целиком", arguments: ["BARS SHOP", "STUDENT CLUB", "PIZZALAND", "SPARTAK"])
+    @Test("Общие слова и короткие названия только целиком", arguments: [
+        "BARS SHOP", "STUDENT CLUB", "PIZZALAND", "SPARTAK", "OZONE TEST", "SUNFLOWER TEST", "WWW.SPM.BY TEST",
+    ])
     func keywordsNeedBoundaries(merchant: String) {
         #expect(key(merchant) == nil)
     }
