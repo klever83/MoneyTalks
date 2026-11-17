@@ -22,12 +22,13 @@ enum PriorbankAccountStatement {
 
     private static let currencyCodes = ["933": "BYN", "840": "USD", "978": "EUR", "643": "RUB"]
 
-    /// Признаки выписки по счёту, которых нет в выписке по контракту.
+    /// Признаки выписки по счёту, которых нет в выписке по контракту. Без заголовка выписки — 0:
+    /// IBAN Приорбанка и его название встречаются и в детализации переводов в выписках других банков.
     static func confidence(text: String) -> Double {
-        var score = 0.0
-        if text.contains("PJCBBY2X") || text.contains(/BY\d{2}PJCB/) { score += 0.4 }
+        guard text.contains(/Выписка по сч[её]ту с \d{2}\.\d{2}\.\d{4}/) else { return 0 }
+        var score = 0.4
+        if text.contains("PJCBBY2X") || text.contains(/BY\d{2}PJCB/) { score += 0.3 }
         if text.contains("ПРИОРБАНК") || text.contains("Приорбанк ОАО") { score += 0.3 }
-        if text.contains(/Выписка по сч[её]ту с \d{2}\.\d{2}\.\d{4}/) { score += 0.3 }
         return min(score, 1)
     }
 
