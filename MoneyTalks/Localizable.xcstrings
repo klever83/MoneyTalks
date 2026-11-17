@@ -1294,6 +1294,126 @@
           }
         }
       }
+    },
+    "Разобрать без категории": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sort uncategorized"
+          }
+        }
+      }
+    },
+    "Операций: %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transactions: %lld"
+          }
+        }
+      }
+    },
+    "По мерчантам": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "By merchant"
+          }
+        }
+      }
+    },
+    "Категория применится ко всем операциям мерчанта.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The category applies to all of the merchant's transactions."
+          }
+        }
+      }
+    },
+    "Без названия мерчанта": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No merchant name"
+          }
+        }
+      }
+    },
+    "Платежи из приложения банка, ЕРИП и переводы: по выписке не видно, за что они, поэтому они разбираются по одной.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Payments from the banking app, ERIP and transfers: the statement doesn't say what they were for, so they are sorted one by one."
+          }
+        }
+      }
+    },
+    "Всё разложено": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All sorted"
+          }
+        }
+      }
+    },
+    "Операций без категории нет": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No uncategorized transactions"
+          }
+        }
+      }
+    },
+    "Ещё операций: %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More transactions: %lld"
+          }
+        }
+      }
+    },
+    "Всегда так для «%@»": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Always for “%@”"
+          }
+        }
+      }
+    },
+    "Следующие операции этого мерчанта получат категорию сами.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Future transactions from this merchant will get the category automatically."
+          }
+        }
+      }
+    },
+    "Категория достанется только этим операциям.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only these transactions get the category."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
