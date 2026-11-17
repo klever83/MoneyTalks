@@ -10,6 +10,8 @@ final class TransactionsViewModel {
     private(set) var accounts: [Account] = []
     private(set) var categories: [FinanceCategory] = []
     var errorMessage: String?
+    /// Разбор операций без категории.
+    let review: UncategorizedViewModel
 
     private let transactionRepository: any TransactionRepository
     private let accountRepository: any AccountRepository
@@ -29,6 +31,7 @@ final class TransactionsViewModel {
         categoryRepository = categories
         self.categorizer = categorizer
         ruleRepository = rules
+        review = UncategorizedViewModel(transactions: transactions, rules: rules)
     }
 
     /// Операции, сгруппированные по дню, новые сверху.
@@ -42,11 +45,19 @@ final class TransactionsViewModel {
         categories.first { $0.id == transaction.categoryID }
     }
 
+    /// Видимые категории расходов или доходов деревом: для выбора категории.
+    func pickerCategories(isExpense: Bool) -> [(category: FinanceCategory, depth: Int)] {
+        let kind: FinanceCategory.Kind = isExpense ? .expense : .income
+        let hidden = FinanceCategory.hiddenIDs(categories)
+        return FinanceCategory.tree(categories.filter { $0.kind == kind && !hidden.contains($0.id) })
+    }
+
     func observe() async {
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.observeTransactions() }
             group.addTask { await self.observeAccounts() }
             group.addTask { await self.observeCategories() }
+            group.addTask { await self.review.observe() }
         }
     }
 
@@ -189,6 +200,23 @@ public struct TransactionsScreen: View {
     public var body: some View {
         NavigationStack {
             List {
+                if model.review.count > 0 {
+                    Section {
+                        NavigationLink(value: UncategorizedRoute()) {
+                            Label {
+                                VStack(alignment: .leading) {
+                                    Text("Разобрать без категории")
+                                    Text("Операций: \(model.review.count)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            } icon: {
+                                Image(systemName: "tray.full")
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+                    }
+                }
                 ForEach(model.days, id: \.day) { day in
                     Section {
                         ForEach(day.items) { transaction in
@@ -219,6 +247,9 @@ public struct TransactionsScreen: View {
             .navigationDestination(for: FinanceTransaction.ID.self) { id in
                 TransactionDetailView(model: model, transactionID: id)
             }
+            .navigationDestination(for: UncategorizedRoute.self) { _ in
+                UncategorizedScreen(model: model)
+            }
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button("Добавить", systemImage: "plus") { isAdding = true }
@@ -235,6 +266,9 @@ public struct TransactionsScreen: View {
         }
     }
 }
+
+/// Переход на экран «Без категории».
+private struct UncategorizedRoute: Hashable {}
 
 private struct TransactionRow: View {
     let transaction: FinanceTransaction
