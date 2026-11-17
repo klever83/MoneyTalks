@@ -192,8 +192,11 @@ enum PriorbankAccountStatement {
             let usefulPlace = place.contains(where: \.isLetter) && !place.hasPrefix("Приорбанк ОАО") ? place : ""
             let details = self.details
             let parts = isCard && !details.isEmpty ? [details, usefulPlace] : [kind, details, usefulPlace]
-            return parts.filter { !$0.isEmpty }.joined(separator: " ")
+            // Пустое место у карточных операций — одинокая «,»: PDFKit может приклеить её к мерчанту.
+            return parts.filter { !$0.isEmpty }.joined(separator: " ").trimmingCharacters(in: Self.edgeNoise)
         }
+
+        private static let edgeNoise = CharacterSet(charactersIn: " ,")
 
         /// Детализация без реквизитов: у зачислений по ведомости за назначением платежа идут
         /// плательщик, его счёт, УНП и прочее, в описание это не нужно.
