@@ -173,4 +173,29 @@ struct TransactionsViewModelTests {
         #expect(saved.note == "возврат")
         #expect(!saved.categoryLocked)
     }
+
+    @Test("Разбор без категории: группы обновляются, категория группы сохраняется вместе с правилом")
+    func reviewUncategorized() async throws {
+        let observing = Task { await model.observe() }
+        defer { observing.cancel() }
+        let account = try await cardAccount()
+        try await waitUntil { !model.categories.isEmpty }
+        let first = imported("KOFEMANIYA 12 MINSK", account: account)
+        let second = imported("KOFEMANIYA 45 GOMEL", account: account)
+        let payment = imported("MOBILE BANK MINSK", account: account)
+        try await transactions.save([first, second, payment])
+        try await waitUntil { model.review.count == 3 }
+        #expect(model.review.merchants.map(\.transactions.count) == [2])
+        #expect(model.review.singles.count == 1)
+        #expect(model.pickerCategories(isExpense: true).contains { $0.category.id == groceries })
+        #expect(!model.pickerCategories(isExpense: true).contains { $0.category.id == FinanceCategory.systemID(for: "salary") })
+
+        let group = try #require(model.review.merchants.first)
+        await model.review.assign(group, to: gifts, always: true)
+        try await waitUntil { model.review.count == 1 }
+
+        let saved = try await transactions.transactions(TransactionQuery())
+        #expect(Set(saved.filter { $0.categoryID == gifts }.map(\.id)) == [first.id, second.id])
+        #expect(try await rules.rules().map(\.conditions) == [[.merchantKey("kofemaniya")]])
+    }
 }

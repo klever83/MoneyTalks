@@ -11,11 +11,7 @@ public enum AlwaysRule {
         categoryID: FinanceCategory.ID,
         existing: [CategoryRule]
     ) -> CategoryRule? {
-        // Стоп-лист служебных слов не бывает полным («Перевод на карту другого банка» даёт ключ
-        // «другого банка»), поэтому на всём, что похоже на перевод, «всегда так» не предлагается.
-        guard !TransferWords.appear(in: transaction.merchantRaw) else { return nil }
-        let key = MerchantNormalizer.key(transaction.merchantRaw)
-        guard !key.isEmpty else { return nil }
+        guard let key = merchantKey(for: transaction) else { return nil }
         let condition = CategoryRule.Condition.merchantKey(key)
         let previous = existing.first { $0.origin == .user && $0.conditions == [condition] }
         return CategoryRule(
@@ -26,6 +22,23 @@ public enum AlwaysRule {
             origin: .user
         )
     }
+
+    /// Ключ мерчанта операции для правила или `nil`, если мерчанта в описании нет.
+    public static func merchantKey(for transaction: FinanceTransaction) -> String? {
+        // Стоп-лист служебных слов не бывает полным («Перевод на карту другого банка» даёт ключ
+        // «другого банка»), поэтому на всём, что похоже на перевод, «всегда так» не предлагается.
+        guard !TransferWords.appear(in: transaction.merchantRaw) else { return nil }
+        let key = MerchantNormalizer.key(transaction.merchantRaw)
+        guard !key.isEmpty, !channelKeys.contains(key) else { return nil }
+        return key
+    }
+
+    /// Ключи каналов, а не мерчантов: платежи из приложения или интернет-банка (у Приорбанка
+    /// «MOBILE BANK») бывают за что угодно, и одно правило на них разложило бы все такие платежи в одну категорию.
+    static let channelKeys: Set<String> = [
+        "mobile", "mobile banking", "internet", "internet banking", "sms",
+        "мобильный", "мобильный банк", "интернет", "интернет банк", "интернет банкинг",
+    ]
 
     /// Прошлые операции, которым правило поменяет категорию: подходят под правило, не переводы,
     /// категория не закреплена вручную и отличается от категории правила.
