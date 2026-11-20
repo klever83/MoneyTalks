@@ -52,4 +52,65 @@ struct MerchantKeyMigrationTests {
         #expect(migrated[rules[3].id] == [.merchantKey("g")])
         #expect(migrated[rules[4].id] == [.merchantContains("EVROOPT")])
     }
+
+    @Test("Правила, совпавшие после перевода ключа, сливаются: остаётся последнее изменённое")
+    func mergesDuplicates() throws {
+        let queue = try DatabaseQueue()
+        let migrator = AppDatabase.migrator
+        try migrator.migrate(queue, upTo: "v11-transfer-declined")
+
+        let account = Account(name: "Карта", kind: .card, currency: .byn)
+        let cafes = FinanceCategory.systemID(for: "cafes")
+        let groceries = FinanceCategory.systemID(for: "groceries")
+        let minsk = CategoryRule(conditions: [.merchantKey("spar")], categoryID: cafes, origin: .user)
+        let tbilisi = CategoryRule(conditions: [.merchantKey("geo tbilisi spar")], categoryID: groceries, origin: .user)
+        try queue.write { db in
+            try AccountRecord(account).insert(db)
+            let transaction = FinanceTransaction(
+                accountID: account.id, bookedAt: .now,
+                amount: Money(minorUnits: -100, currency: .byn), merchantRaw: "Retail GEO TBILISI SPAR", source: .imported
+            )
+            try TransactionRecord(transaction).insert(db)
+            try CategoryRuleRecord(minsk, createdAt: .now, updatedAt: Date(timeIntervalSince1970: 1_000)).insert(db)
+            try CategoryRuleRecord(tbilisi, createdAt: .now, updatedAt: Date(timeIntervalSince1970: 2_000)).insert(db)
+        }
+
+        try migrator.migrate(queue)
+
+        let live = try queue.read { db in
+            try CategoryRuleRecord.filter(Column("deletedAt") == nil).fetchAll(db).compactMap(\.domain)
+        }
+        #expect(live.count == 1)
+        #expect(live.first?.id == tbilisi.id)
+        #expect(live.first?.conditions == [.merchantKey("spar")])
+        #expect(live.first?.categoryID == groceries)
+    }
+
+    @Test("v13 переводит ключи v12: код страны внутри названия больше не режет его")
+    func migratesFromV12() throws {
+        let queue = try DatabaseQueue()
+        let migrator = AppDatabase.migrator
+        try migrator.migrate(queue, upTo: "v12-merchant-key-place")
+
+        let account = Account(name: "Карта", kind: .card, currency: .byn)
+        let raw = "SUPER TUR BLR, MINSK"
+        #expect(MerchantKeyV2.key(raw) == "super")
+        let rule = CategoryRule(conditions: [.merchantKey(MerchantKeyV2.key(raw))], categoryID: FinanceCategory.systemID(for: "travel"), origin: .user)
+        try queue.write { db in
+            try AccountRecord(account).insert(db)
+            let transaction = FinanceTransaction(
+                accountID: account.id, bookedAt: .now,
+                amount: Money(minorUnits: -100, currency: .byn), merchantRaw: raw, source: .imported
+            )
+            try TransactionRecord(transaction).insert(db)
+            try CategoryRuleRecord(rule, createdAt: .now, updatedAt: .now).insert(db)
+        }
+
+        try migrator.migrate(queue)
+
+        let conditions = try queue.read { db in
+            try CategoryRuleRecord.fetchOne(db, key: rule.id.rawValue)?.domain?.conditions
+        }
+        #expect(conditions == [.merchantKey("super tur")])
+    }
 }
