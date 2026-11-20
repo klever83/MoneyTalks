@@ -1414,6 +1414,276 @@
           }
         }
       }
+    },
+    "Разобрано %@ трат · без категории: %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ of spending sorted · uncategorized: %lld"
+          }
+        }
+      }
+    },
+    "По одному": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One by one"
+          }
+        }
+      }
+    },
+    "Разбор трат": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sort spending"
+          }
+        }
+      }
+    },
+    "Закрыть": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close"
+          }
+        }
+      }
+    },
+    "Разложим траты по категориям": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Let's sort your spending"
+          }
+        }
+      }
+    },
+    "Банк не пишет, что это за места. Ответь один раз про каждое, дальше MoneyTalks будет раскладывать их сам. Всё остаётся на телефоне.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your bank doesn't say what these places are. Answer once for each, and MoneyTalks will sort them from then on. Everything stays on your phone."
+          }
+        }
+      }
+    },
+    "Начать": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start"
+          }
+        }
+      }
+    },
+    "Готово": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        }
+      }
+    },
+    "Разобрано %@ трат, было %@.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ of spending sorted, up from %@."
+          }
+        }
+      }
+    },
+    "Разобрано %@ трат.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ of spending sorted."
+          }
+        }
+      }
+    },
+    "%lld из %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld of %lld"
+          }
+        }
+      }
+    },
+    "Что это за место?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What is this place?"
+          }
+        }
+      }
+    },
+    "Другая категория…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Another category…"
+          }
+        }
+      }
+    },
+    "Не знаю": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not sure"
+          }
+        }
+      }
+    },
+    "Ответ запомнится для следующих выписок.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your answer is remembered for future statements."
+          }
+        }
+      }
+    },
+    "Переводы на свои карты": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transfers to my own cards"
+          }
+        }
+      }
+    },
+    "Не попадут в доходы и расходы": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Won't count as income or spending"
+          }
+        }
+      }
+    },
+    "Переводы людям или оплата": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transfers to people or payments"
+          }
+        }
+      }
+    },
+    "Выбрать одну категорию для всех": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pick one category for all"
+          }
+        }
+      }
+    },
+    "Разные, разберу сам на экране «Без категории»": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A mix, I'll sort them on the Uncategorized screen"
+          }
+        }
+      }
+    },
+    "Разложить по категориям": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sort into categories"
+          }
+        }
+      }
+    },
+    "Это платежи из приложения банка: по выписке не видно, за что они. Ответ применится ко всем сразу, поэтому если среди них есть ЕРИП или оплата, выбери «Разные».": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "These are payments from your banking app: the statement doesn't say what they were for. Your answer applies to all of them, so if some are bill payments or purchases, choose “A mix”."
+          }
+        }
+      }
+    },
+    "Это переводы на свои карты?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Are these transfers to your own cards?"
+          }
+        }
+      }
+    },
+    "Да, это переводы": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yes, these are transfers"
+          }
+        }
+      }
+    },
+    "Операций: %lld, на сумму %@. Они не попадут в расходы. Отметку можно снять в карточке операции: «Это не перевод».": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transactions: %lld, total %@. They won't count as expenses. You can undo this on the transaction screen: “Not a transfer”."
+          }
+        }
+      }
+    },
+    "Это не перевод": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not a transfer"
+          }
+        }
+      }
+    },
+    "Операция вернётся в доходы и расходы, и для неё можно будет выбрать категорию.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The transaction returns to income and expenses, and you can choose a category for it."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
