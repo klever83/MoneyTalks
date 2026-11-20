@@ -11,6 +11,8 @@ public struct ImportScreen: View {
     /// Файл, открытый в MoneyTalks из другого приложения: экран сразу начинает его импорт.
     @Binding private var incomingFile: URL?
     private let banks: [BankInfo]
+    /// «Разложить по категориям» после импорта: открывает анкету разбора трат.
+    private let onReviewCategories: (() -> Void)?
 
     public init(
         registry: ParserRegistry,
@@ -19,9 +21,11 @@ public struct ImportScreen: View {
         transactions: any TransactionRepository,
         imports: any ImportRepository,
         categorizer: any TransactionCategorizer,
-        incomingFile: Binding<URL?> = .constant(nil)
+        incomingFile: Binding<URL?> = .constant(nil),
+        onReviewCategories: (() -> Void)? = nil
     ) {
         self.banks = banks
+        self.onReviewCategories = onReviewCategories
         _incomingFile = incomingFile
         _model = State(initialValue: ImportModel(
             registry: registry,
@@ -92,6 +96,13 @@ public struct ImportScreen: View {
             } description: {
                 Text("Добавлено операций: \(imported)")
             } actions: {
+                if let onReviewCategories {
+                    Button("Разложить по категориям") {
+                        model.reset()
+                        onReviewCategories()
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
                 Button("Импортировать ещё") { model.reset() }
             }
         case let .failed(message):

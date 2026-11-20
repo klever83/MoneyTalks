@@ -15,6 +15,8 @@ public struct AppRootView: View {
     @State private var selectedTab = RootTab.overview
     /// Выписка, открытая в MoneyTalks через «Поделиться» или «Открыть в»: её подхватывает вкладка импорта.
     @State private var incomingFile: URL?
+    /// Анкета разбора трат, открытая с экрана импорта.
+    @State private var isQuickReviewPresented = false
 
     private enum RootTab: Hashable {
         case overview, transactions, `import`, accounts, settings
@@ -39,7 +41,8 @@ public struct AppRootView: View {
                     accounts: dependencies.accounts,
                     categories: dependencies.categories,
                     categorizer: dependencies.categorizer,
-                    rules: dependencies.categoryRules
+                    rules: dependencies.categoryRules,
+                    isQuickReviewPresented: $isQuickReviewPresented
                 )
             }
             Tab("Импорт", systemImage: "square.and.arrow.down", value: .import) {
@@ -50,7 +53,11 @@ public struct AppRootView: View {
                     transactions: dependencies.transactions,
                     imports: dependencies.imports,
                     categorizer: dependencies.categorizer,
-                    incomingFile: $incomingFile
+                    incomingFile: $incomingFile,
+                    onReviewCategories: {
+                        selectedTab = .transactions
+                        isQuickReviewPresented = true
+                    }
                 )
             }
             Tab("Счета", systemImage: "creditcard", value: .accounts) {

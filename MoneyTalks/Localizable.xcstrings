@@ -1286,6 +1286,226 @@
           }
         }
       }
+    },
+    "Разобрано %@ трат · без категории: %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ of spending sorted · uncategorized: %lld"
+          }
+        }
+      }
+    },
+    "По одному": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One by one"
+          }
+        }
+      }
+    },
+    "Разбор трат": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sort spending"
+          }
+        }
+      }
+    },
+    "Закрыть": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close"
+          }
+        }
+      }
+    },
+    "Разложим траты по категориям": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Let's sort your spending"
+          }
+        }
+      }
+    },
+    "Банк не пишет, что это за места. Ответь один раз про каждое, дальше MoneyTalks будет раскладывать их сам. Всё остаётся на телефоне.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your bank doesn't say what these places are. Answer once for each, and MoneyTalks will sort them from then on. Everything stays on your phone."
+          }
+        }
+      }
+    },
+    "Начать": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start"
+          }
+        }
+      }
+    },
+    "Готово": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        }
+      }
+    },
+    "Разобрано %@ трат, было %@.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ of spending sorted, up from %@."
+          }
+        }
+      }
+    },
+    "Разобрано %@ трат.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ of spending sorted."
+          }
+        }
+      }
+    },
+    "%lld из %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld of %lld"
+          }
+        }
+      }
+    },
+    "Что это за место?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What is this place?"
+          }
+        }
+      }
+    },
+    "Другая категория…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Another category…"
+          }
+        }
+      }
+    },
+    "Не знаю": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not sure"
+          }
+        }
+      }
+    },
+    "Ответ запомнится для следующих выписок.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your answer is remembered for future statements."
+          }
+        }
+      }
+    },
+    "Это платежи из приложения банка: по выписке не видно, за что они. Что это чаще всего?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "These are payments from your banking app: the statement doesn't say what they were for. What are they usually?"
+          }
+        }
+      }
+    },
+    "Переводы на свои карты": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transfers to my own cards"
+          }
+        }
+      }
+    },
+    "Не попадут в доходы и расходы": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Won't count as income or spending"
+          }
+        }
+      }
+    },
+    "Переводы людям или оплата": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transfers to people or payments"
+          }
+        }
+      }
+    },
+    "Выбрать одну категорию для всех": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pick one category for all"
+          }
+        }
+      }
+    },
+    "Разные, разберу сам на экране «Без категории»": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A mix, I'll sort them on the Uncategorized screen"
+          }
+        }
+      }
+    },
+    "Разложить по категориям": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sort into categories"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

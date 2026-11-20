@@ -198,4 +198,32 @@ struct TransactionsViewModelTests {
         #expect(Set(saved.filter { $0.categoryID == gifts }.map(\.id)) == [first.id, second.id])
         #expect(try await rules.rules().map(\.conditions) == [[.merchantKey("kofemaniya")]])
     }
+
+    @Test("Анкета: очередь мерчантов, «Не знаю» откладывает, MOBILE BANK становится переводами")
+    func quickReview() async throws {
+        let defaults = try #require(UserDefaults(suiteName: "QuickReviewTests-\(UUID())"))
+        let review = UncategorizedViewModel(transactions: transactions, rules: rules, defaults: defaults)
+        let observing = Task { await review.observe() }
+        defer { observing.cancel() }
+        let account = try await cardAccount()
+        let big = imported("ORION KhOLL MINSK", account: account, minor: -5000)
+        let small = imported("FASTEN MINSK", account: account, minor: -300)
+        let payment = imported("MOBILE BANK MINSK", account: account, minor: -2000)
+        try await transactions.save([big, small, payment])
+        try await waitUntil { review.isLoaded && review.count == 3 }
+
+        #expect(review.quickQueue().map(\.transactions.first?.id) == [big.id, small.id])
+        #expect(review.channels.map(\.transactions.count) == [1])
+        #expect(review.progress?.categorizedShare == 0)
+
+        let first = try #require(review.quickQueue().first)
+        review.snooze(first)
+        #expect(review.quickQueue().map(\.transactions.first?.id) == [small.id])
+        #expect(review.quickQueue(now: .now.addingTimeInterval(31 * 24 * 3600)).count == 2)
+
+        await review.markAsTransfers(try #require(review.channels.first))
+        try await waitUntil { review.channels.isEmpty }
+        let saved = try await transactions.transactions(TransactionQuery())
+        #expect(saved.first { $0.id == payment.id }?.kind == .transfer)
+    }
 }

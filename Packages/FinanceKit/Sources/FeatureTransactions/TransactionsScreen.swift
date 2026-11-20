@@ -180,14 +180,18 @@ final class TransactionsViewModel {
 public struct TransactionsScreen: View {
     @State private var model: TransactionsViewModel
     @State private var isAdding = false
+    /// Анкета разбора трат: её открывает и экран импорта после сохранения выписки.
+    @Binding private var isQuickReviewPresented: Bool
 
     public init(
         transactions: any TransactionRepository,
         accounts: any AccountRepository,
         categories: any CategoryRepository,
         categorizer: any TransactionCategorizer,
-        rules: any CategoryRuleRepository
+        rules: any CategoryRuleRepository,
+        isQuickReviewPresented: Binding<Bool> = .constant(false)
     ) {
+        _isQuickReviewPresented = isQuickReviewPresented
         _model = State(initialValue: TransactionsViewModel(
             transactions: transactions,
             accounts: accounts,
@@ -206,9 +210,15 @@ public struct TransactionsScreen: View {
                             Label {
                                 VStack(alignment: .leading) {
                                     Text("Разобрать без категории")
-                                    Text("Операций: \(model.review.count)")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                    Group {
+                                        if let share = model.review.progress?.categorizedShare {
+                                            Text("Разобрано \(share.formatted(.percent.precision(.fractionLength(0)))) трат · без категории: \(model.review.count)")
+                                        } else {
+                                            Text("Операций: \(model.review.count)")
+                                        }
+                                    }
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                                 }
                             } icon: {
                                 Image(systemName: "tray.full")
@@ -255,6 +265,9 @@ public struct TransactionsScreen: View {
                     Button("Добавить", systemImage: "plus") { isAdding = true }
                         .disabled(model.accounts.isEmpty)
                 }
+            }
+            .sheet(isPresented: $isQuickReviewPresented) {
+                QuickReviewView(model: model)
             }
             .sheet(isPresented: $isAdding) {
                 AddTransactionForm(accounts: model.accounts, categories: model.categories) { draft in

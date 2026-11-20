@@ -1,6 +1,7 @@
 import Categorization
 import DesignSystem
 import Domain
+import Foundation
 import SwiftUI
 
 /// Операции без категории, сгруппированные по мерчанту. Живёт в `TransactionsViewModel`,
@@ -9,14 +10,64 @@ import SwiftUI
 @Observable
 final class UncategorizedViewModel {
     private(set) var groups: [UncategorizedReview.Group] = []
+    /// Расходы без категории через приложение банка (MOBILE BANK): для отдельного вопроса в анкете.
+    private(set) var channels: [QuickReview.ChannelGroup] = []
+    private(set) var progress: QuickReview.Progress?
+    /// Операции уже прочитаны из базы: до этого очередь анкеты пустая не потому, что всё разложено.
+    private(set) var isLoaded = false
+    /// Все операции: для подсказок по тому же мерчанту из других банков.
+    private(set) var all: [FinanceTransaction] = []
     var errorMessage: String?
 
     private let transactionRepository: any TransactionRepository
     private let ruleRepository: any CategoryRuleRepository
+    private let defaults: UserDefaults
+    private static let snoozeKey = "quickReview.snoozedUntil"
 
-    init(transactions: any TransactionRepository, rules: any CategoryRuleRepository) {
+    init(transactions: any TransactionRepository, rules: any CategoryRuleRepository, defaults: UserDefaults = .standard) {
         transactionRepository = transactions
         ruleRepository = rules
+        self.defaults = defaults
+    }
+
+    /// Мерчанты, отложенные кнопкой «Не знаю»: ключ → до какого момента не спрашивать.
+    var snoozedUntil: [String: Date] {
+        (defaults.dictionary(forKey: Self.snoozeKey) as? [String: Double] ?? [:])
+            .mapValues(Date.init(timeIntervalSince1970:))
+    }
+
+    /// Очередь анкеты на сейчас: экран анкеты берёт её снимок при открытии.
+    func quickQueue(now: Date = .now) -> [UncategorizedReview.Group] {
+        QuickReview.queue(groups, snoozedUntil: snoozedUntil, now: now)
+    }
+
+    func suggestions(for group: UncategorizedReview.Group, categories: [FinanceCategory]) -> [FinanceCategory.ID] {
+        QuickReview.suggestions(for: group, transactions: all, categories: categories)
+    }
+
+    /// «Не знаю»: мерчант не попадёт в анкету 30 дней. Просроченные отметки заодно чистятся.
+    func snooze(_ group: UncategorizedReview.Group, now: Date = .now) {
+        guard case .merchant(let key) = group.id else { return }
+        var stored = (defaults.dictionary(forKey: Self.snoozeKey) as? [String: Double] ?? [:])
+            .filter { $0.value > now.timeIntervalSince1970 }
+        stored[key] = now.addingTimeInterval(QuickReview.snoozeInterval).timeIntervalSince1970
+        defaults.set(stored, forKey: Self.snoozeKey)
+    }
+
+    func markAsTransfers(_ channel: QuickReview.ChannelGroup) async {
+        await save(QuickReview.markAsTransfers(channel))
+    }
+
+    func assign(_ channel: QuickReview.ChannelGroup, to categoryID: FinanceCategory.ID) async {
+        await save(QuickReview.assign(channel, to: categoryID))
+    }
+
+    private func save(_ transactions: [FinanceTransaction]) async {
+        do {
+            try await transactionRepository.save(transactions)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     var count: Int { groups.reduce(0) { $0 + $1.transactions.count } }
@@ -27,7 +78,11 @@ final class UncategorizedViewModel {
         do {
             // Все операции, а не только без категории: по ним видно, есть ли у мерчанта покупки.
             for try await items in transactionRepository.observeTransactions(TransactionQuery()) {
+                all = items
                 groups = UncategorizedReview.groups(items)
+                channels = QuickReview.channelGroups(items)
+                progress = QuickReview.progress(items)
+                isLoaded = true
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -54,6 +109,7 @@ final class UncategorizedViewModel {
 struct UncategorizedScreen: View {
     let model: TransactionsViewModel
     @State private var selected: UncategorizedReview.Group?
+    @State private var isQuickReviewPresented = false
 
     private var review: UncategorizedViewModel { model.review }
 
@@ -93,6 +149,15 @@ struct UncategorizedScreen: View {
             }
         }
         .navigationTitle("Без категории")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("По одному") { isQuickReviewPresented = true }
+                    .disabled(review.merchants.isEmpty && review.channels.isEmpty)
+            }
+        }
+        .sheet(isPresented: $isQuickReviewPresented) {
+            QuickReviewView(model: model)
+        }
         .sheet(item: $selected) { group in
             AssignCategorySheet(group: group, categories: model.pickerCategories(isExpense: group.isExpense)) { categoryID, always in
                 Task { await review.assign(group, to: categoryID, always: always) }
