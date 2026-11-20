@@ -92,7 +92,7 @@ struct TransferMatcherTests {
         #expect(pairs.count == 2)
     }
 
-    @Test("Категория от пользователя, удалённые и уже связанные операции не трогаются")
+    @Test("Категория от пользователя, «Это не перевод», удалённые и уже связанные операции не трогаются")
     func skipsLockedDeletedAndPaired() {
         var locked = transaction(card, -10_000)
         locked.categoryLocked = true
@@ -101,7 +101,9 @@ struct TransferMatcherTests {
         var paired = transaction(card, -10_000)
         paired.transferPairID = UUID()
         paired.kind = .transfer
-        #expect(TransferMatcher.pairs(in: [locked, deleted, paired, transaction(deposit, 10_000)]).isEmpty)
+        var declined = transaction(card, -10_000)
+        declined.transferDeclined = true
+        #expect(TransferMatcher.pairs(in: [locked, deleted, paired, declined, transaction(deposit, 10_000)]).isEmpty)
     }
 
     @Test("Идентификатор пары одинаковый при повторном поиске")

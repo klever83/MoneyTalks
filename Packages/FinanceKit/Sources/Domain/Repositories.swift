@@ -41,6 +41,10 @@ public protocol TransactionRepository: Sendable {
     /// пользователя, сделанная после чтения операций, не перезаписывается.
     /// - Returns: сколько операций получили категорию.
     func fillCategories(_ categories: [FinanceTransaction.ID: FinanceCategory.ID]) async throws -> Int
+    /// Отмечает операции переводом без пары (`OwnTransfers`) с теми же условиями, что `fillCategories`:
+    /// только тех, кто всё ещё ждёт категорию и не связан переводом.
+    /// - Returns: сколько операций стали переводом.
+    func markTransfers(_ ids: [FinanceTransaction.ID]) async throws -> Int
 }
 
 public protocol CategoryRepository: Sendable {

@@ -51,6 +51,7 @@ public enum TransferMatcher {
                 // Холд связывается переводом, когда проведётся: иначе связь ушла бы вместе с ним.
                 && !transaction.isPending
                 && transaction.transferPairID == nil
+                && !transaction.transferDeclined
                 && !transaction.categoryLocked
                 && transaction.kind != .transfer
                 && !transaction.amount.isZero

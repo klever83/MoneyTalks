@@ -139,6 +139,28 @@ public struct GRDBTransactionRepository: TransactionRepository {
         }
     }
 
+    public func markTransfers(_ ids: [FinanceTransaction.ID]) async throws -> Int {
+        guard !ids.isEmpty else { return 0 }
+        let now = Date.now
+        // Условия по частям: одно длинное выражение компилятор не успевает вывести по типам.
+        let uncategorized: SQLExpression = Column("categoryID") == nil && Column("categoryLocked") == false
+        let notTransfer: SQLExpression = Column("kind") != FinanceTransaction.Kind.transfer.rawValue
+            && Column("transferPairID") == nil
+        let notDeclined: SQLExpression = Column("transferDeclined") == false && deletedAt == nil
+        return try await database.writer.write { db in
+            try TransactionRecord
+                .filter(keys: ids.map(\.rawValue))
+                .filter(uncategorized)
+                .filter(notTransfer)
+                .filter(notDeclined)
+                .updateAll(
+                    db,
+                    Column("kind").set(to: FinanceTransaction.Kind.transfer.rawValue),
+                    Column("updatedAt").set(to: now)
+                )
+        }
+    }
+
     public func delete(_ id: FinanceTransaction.ID) async throws {
         let now = Date.now
         try await database.writer.write { db in

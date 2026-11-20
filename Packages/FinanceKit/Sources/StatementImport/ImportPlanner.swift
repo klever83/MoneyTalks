@@ -238,7 +238,12 @@ public enum ImportPlanner {
             ))
         }
         let applied = TransferMatcher.apply(pairs.filter { !excludedLinks.contains($0.id) }, to: pool, now: now)
-        newTransactions = Array(applied.prefix(newTransactions.count))
+        // Перевод на свой счёт, вторая сторона которого в импорт не попала: тоже не расход.
+        // Стороны связи, снятой пользователем в превью, остаются как есть.
+        let unlinked = Set(links.filter(\.isExcluded).flatMap { [$0.outgoing.id, $0.incoming.id] })
+        newTransactions = applied.prefix(newTransactions.count).map { transaction in
+            unlinked.contains(transaction.id) ? transaction : OwnTransfers.marked(transaction)
+        }
         let updatedTransactions = zip(saved, applied.dropFirst(newTransactions.count))
             .filter { original, updated in original.transferPairID != updated.transferPairID }
             .map(\.1)

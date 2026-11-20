@@ -1585,16 +1585,6 @@
         }
       }
     },
-    "Переводы людям или оплата": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Transfers to people or payments"
-          }
-        }
-      }
-    },
     "Выбрать одну категорию для всех": {
       "localizations": {
         "en": {
@@ -1681,6 +1671,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "The transaction returns to income and expenses, and you can choose a category for it."
+          }
+        }
+      }
+    },
+    "category.transfers_people": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transfers to people"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Переводы людям"
+          }
+        }
+      }
+    },
+    "Переводы другим людям": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transfers to other people"
+          }
+        }
+      }
+    },
+    "Расход в категории «%@»": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expense in “%@”"
+          }
+        }
+      }
+    },
+    "Оплата или что-то одно": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Payments or one thing"
           }
         }
       }

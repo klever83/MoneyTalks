@@ -36,6 +36,9 @@ struct BuiltInRulesCoverageTests {
         ("ELEMENTUM BLR, GOMEL", "cafes"),
         ("FLOWERS.BY BLR, MINSK", "gifts"),
         ("FASTEN BLR, MINSK", "taxi"),
+        ("CH Debit BLR MINSK P2P_SDBO", "transfers_people"),
+        ("Перевод P2P PERSON TO PERSON", "transfers_people"),
+        ("Перевод между счетами физических лиц через АК", "transfers_people"),
     ])
     func merchants(merchant: String, expected: String) {
         #expect(key(merchant) == FinanceCategory.systemID(for: expected))
@@ -103,6 +106,17 @@ struct CategoryBackfillTests {
             }
             return count
         }
+        func markTransfers(_ ids: [FinanceTransaction.ID]) async throws -> Int {
+            var count = 0
+            for id in ids {
+                guard let index = stored.firstIndex(where: { $0.id == id }),
+                      UncategorizedReview.isPending(stored[index]), stored[index].transferPairID == nil,
+                      !stored[index].transferDeclined else { continue }
+                stored[index].kind = .transfer
+                count += 1
+            }
+            return count
+        }
         func fingerprints(accountID: Account.ID) async throws -> Set<String> { [] }
         func earliestBookedAt(accountID: Account.ID) async throws -> Date? { nil }
     }
@@ -142,5 +156,49 @@ struct CategoryBackfillTests {
         #expect(byID[unknown.id]?.categoryID == nil)
         #expect(byID[locked.id]?.categoryID == nil)
         #expect(byID[transfer.id]?.categoryID == nil)
+    }
+
+    @Test("Перевод на свой счёт без второй стороны становится переводом, а не расходом без категории")
+    func backfillOwnTransfers() async throws {
+        let currency = transaction("Перевод с продажей валюты по списку ПДПП между счетами клиента")
+        let piggy = transaction("Перевод на копилку по механике по расписанию")
+        let p2p = transaction("CH Debit BLR MINSK P2P SDBO")
+        let lockedOwn = transaction("Перевод через АК в рамках одного ФЛ") { $0.categoryLocked = true }
+        let store = Store([currency, piggy, p2p, lockedOwn])
+
+        let count = try await CategoryBackfill.run(
+            transactions: store,
+            categorizer: RuleBasedTransactionCategorizer(repository: NoRules())
+        )
+
+        #expect(count == 3)
+        let byID = Dictionary(uniqueKeysWithValues: store.stored.map { ($0.id, $0) })
+        #expect(byID[currency.id]?.kind == .transfer)
+        #expect(byID[piggy.id]?.kind == .transfer)
+        #expect(byID[currency.id]?.transferPairID == nil)
+        // Перевод человеку может быть чужим счётом: расход «Переводы людям». Выбор пользователя не трогается.
+        #expect(byID[p2p.id]?.kind == .expense)
+        #expect(byID[p2p.id]?.categoryID == FinanceCategory.systemID(for: "transfers_people"))
+        #expect(byID[lockedOwn.id]?.kind == .expense)
+    }
+
+    @Test("«Это не перевод» переживает следующую раскладку: операция остаётся расходом")
+    func declinedTransferStaysExpense() async throws {
+        let own = transaction("Перевод через АК в рамках одного ФЛ")
+        let store = Store([own])
+        let categorizer = RuleBasedTransactionCategorizer(repository: NoRules())
+
+        #expect(try await CategoryBackfill.run(transactions: store, categorizer: categorizer) == 1)
+        let marked = try #require(store.stored.first)
+        #expect(marked.kind == .transfer)
+
+        let restored = try #require(QuickReview.undoTransfer(marked))
+        try await store.save([restored])
+        // Новая версия правил или восстановление копии запускают раскладку снова.
+        #expect(try await CategoryBackfill.run(transactions: store, categorizer: categorizer) == 0)
+        let after = try #require(store.stored.first)
+        #expect(after.kind == .expense)
+        #expect(after.transferDeclined)
+        #expect(UncategorizedReview.isPending(after))
     }
 }

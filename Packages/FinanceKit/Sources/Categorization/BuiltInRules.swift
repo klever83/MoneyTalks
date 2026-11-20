@@ -17,7 +17,7 @@ public enum BuiltInRules {
 
     /// Версия набора правил. Увеличивается при каждом изменении: после обновления приложения
     /// уже загруженные операции без категории раскладываются заново (`CategoryBackfill`).
-    public static let version = 3
+    public static let version = 4
 
     public static let all: [CategoryRule] = merchantRules + mccRules + keywordRules
 
@@ -131,6 +131,11 @@ public enum BuiltInRules {
         // Комиссии банка: только списания («Комиссионное вознаграждение» в плюс — это кэшбэк).
         for text in ["УСЛУГ БАНКА", "КОМИССИЯ"] {
             rules.append(rule("fees", [.merchantContains(text), .amountSign(.negative)], priority: merchantPriority, name: "fees:\(text)"))
+        }
+        // Переводы другим людям: только списания. Перевод между своими счетами склеивается парой
+        // (`TransferMatcher`) или отмечается `OwnTransfers` раньше категорий, сюда он не доходит.
+        for text in ["P2P", "PERSON TO PERSON", "МЕЖДУ СЧЕТАМИ ФИЗИЧЕСКИХ ЛИЦ"] {
+            rules.append(rule("transfers_people", [.merchantContains(text), .amountSign(.negative)], priority: merchantPriority, name: "people:\(text)"))
         }
         return rules
     }()

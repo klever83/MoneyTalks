@@ -59,6 +59,8 @@ public enum QuickReview {
             var transaction = transaction
             transaction.kind = .transfer
             transaction.categoryID = nil
+            // Пользователь сам назвал это переводом: прежний отказ больше не действует.
+            transaction.transferDeclined = false
             return transaction
         }
     }
@@ -74,6 +76,8 @@ public enum QuickReview {
         transaction.kind = transaction.amount.isNegative ? .expense : .income
         transaction.categoryID = nil
         transaction.categoryLocked = false
+        // Решение пользователя: следующая раскладка не должна снова сделать её переводом.
+        transaction.transferDeclined = true
         return transaction
     }
 

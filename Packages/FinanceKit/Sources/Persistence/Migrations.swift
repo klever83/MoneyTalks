@@ -1,3 +1,4 @@
+import Domain
 import Foundation
 import GRDB
 
@@ -161,20 +162,38 @@ extension AppDatabase {
         migrator.registerMigration("v9-more-system-categories") { db in
             // Новые системные категории для уже установленных приложений. У новых их уже создала
             // `v1-system-categories`, поэтому `INSERT OR IGNORE`. В конец списка, после категорий пользователя.
-            for category in SystemCategories.added {
-                try db.execute(
-                    sql: """
-                    INSERT OR IGNORE INTO categories (id, name, systemKey, systemImage, colorHex, parentID, kind, sortOrder, updatedAt)
-                    VALUES (?, ?, ?, ?, ?, NULL, ?, (SELECT COALESCE(MAX(sortOrder), -1) + 1 FROM categories), ?)
-                    """,
-                    arguments: [
-                        category.id.rawValue, category.name, category.systemKey, category.systemImage,
-                        category.colorHex, category.kind.rawValue, category.updatedAt,
-                    ]
-                )
+            try insertSystemCategories(SystemCategories.added, into: db)
+        }
+
+        migrator.registerMigration("v10-transfers-to-people") { db in
+            // «Переводы людям» (P2P, MOBILE BANK): так же, как v9.
+            try insertSystemCategories(SystemCategories.addedV10, into: db)
+        }
+
+        migrator.registerMigration("v11-transfer-declined") { db in
+            // «Это не перевод»: отказ пользователя хранится в операции, чтобы раскладка при новой
+            // версии правил или после восстановления копии не отмечала её переводом снова.
+            try db.alter(table: "transactions") { t in
+                t.add(column: "transferDeclined", .boolean).notNull().defaults(to: false)
             }
         }
 
         return migrator
+    }
+
+    /// Системные категории для уже установленных приложений: `INSERT OR IGNORE` в конец списка.
+    private static func insertSystemCategories(_ categories: [FinanceCategory], into db: Database) throws {
+        for category in categories {
+            try db.execute(
+                sql: """
+                INSERT OR IGNORE INTO categories (id, name, systemKey, systemImage, colorHex, parentID, kind, sortOrder, updatedAt)
+                VALUES (?, ?, ?, ?, ?, NULL, ?, (SELECT COALESCE(MAX(sortOrder), -1) + 1 FROM categories), ?)
+                """,
+                arguments: [
+                    category.id.rawValue, category.name, category.systemKey, category.systemImage,
+                    category.colorHex, category.kind.rawValue, category.updatedAt,
+                ]
+            )
+        }
     }
 }
