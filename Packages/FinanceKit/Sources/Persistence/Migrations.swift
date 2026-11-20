@@ -178,6 +178,12 @@ extension AppDatabase {
             }
         }
 
+        migrator.registerMigration("v12-merchant-key-place") { db in
+            // Ключ мерчанта без места после кода страны и без «покупка товара» (Альфа):
+            // правила «всегда так» переводятся на новый ключ.
+            try MerchantKeyMigration.migrate(db, legacyKey: MerchantKeyMigration.keyV1)
+        }
+
         return migrator
     }
 

@@ -178,6 +178,20 @@ struct AlwaysRuleTests {
         ("Retail BLR MINSK EVROOPT 123", "evroopt"),
         ("Безналичная оплата EVROOPT 12", "evroopt"),
         ("Оплата услуг ЕРИП МТС 375291234567", "мтс"),
+        // Место после кода страны: перед мерчантом уходят код и город, после — всё до конца.
+        ("Retail GEO TBILISI SPAR", "spar"),
+        ("Retail GEO Tbilisi WD-40 LLC", "wd llc"),
+        ("Retail GBR Hornchurch XTIX/xtix.ai", "xtix xtix ai"),
+        ("EVROPOCHTA BLR, MINSKIY RAYON", "evropochta"),
+        ("YANDEX.EDA BLR, MINSK", "yandex eda"),
+        ("MOBILE BANK BLR, MINSK", "mobile"),
+        // Название, которое начинается с кода страны, не трогается.
+        ("USA NAILS MINSK BY", "usa nails"),
+        // Альфа-Банк: «покупка товара» и «G» из «G.MINSK».
+        ("g MINSK Покупка товара / получение услуг TRANSPORT", "transport"),
+        ("WARSZAWA Покупка товара / получение услуг SHOP ABROAD", "shop abroad"),
+        ("TRANSPORT PAYBYCARD.BY g MINSK", "transport paybycard"),
+        ("Оплата товаров и услуг ERIP/ BLR MINSK", ""),
     ])
     func merchantKey(raw: String, expected: String) {
         #expect(MerchantNormalizer.key(raw) == expected)
