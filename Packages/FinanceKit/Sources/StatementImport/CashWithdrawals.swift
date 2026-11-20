@@ -21,14 +21,16 @@ public enum CashWithdrawals {
 
     public static func isCashOperation(_ transaction: FinanceTransaction) -> Bool {
         if isFee(transaction.merchantRaw) { return false }
-        if let mcc = transaction.mcc, cashMCC.contains(mcc) { return true }
+        // MCC точнее текста: с кодом покупки («ATM SHOP», магазин «PST 1») это не наличные.
+        if let mcc = transaction.mcc { return cashMCC.contains(mcc) }
         let text = transaction.merchantRaw
         // Приорбанк, выписка по контракту: тип операции в начале описания, `ATM BLR GOMEL …`, `Cash BLR Minsk Dop.ofis …`.
         // Банкоматы других банков с кодом банка: `ATMTBK GM11 GOMEL …`, `ATMALF GM08 ALMI`.
         if text.contains(/^(?:ATM(?:[A-Z]{3})?|Cash)\s/) { return true }
         // Приорбанк, выписка по счёту: банкомат словом в названии (`CBU-301/14 BAPB ATM BLR, GOMEL`),
-        // взнос через терминал (`CASH-IN 123`, `PST 123`).
-        if text.contains(/\bATM\b/) || text.contains(/^(?:CASH-IN|PST)\s+\d/) { return true }
+        // взнос через терминал (`CASH-IN 123`, `PST 123`). Взнос бывает только поступлением на карту.
+        if text.contains(/\bATM\b/) { return true }
+        if !transaction.amount.isNegative, text.contains(/^(?:CASH-IN|PST)\s+\d/) { return true }
         let lowered = text.lowercased()
         return [
             "выдача наличных", "снятие наличных", "получение наличных", "получение денег в банкомате",

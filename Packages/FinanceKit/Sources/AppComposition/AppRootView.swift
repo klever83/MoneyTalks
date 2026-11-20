@@ -78,11 +78,12 @@ public struct AppRootView: View {
         }
         .appLock(lock)
         .preferredColorScheme(appearance.colorScheme)
-        .task { await categorizeWithNewRules() }
+        // Версию сбрасывает и восстановление из копии: тогда раскладка запускается сразу, без перезапуска.
+        .task(id: categorizedWithRulesVersion) { await categorizeWithNewRules() }
     }
 
     /// После обновления встроенных правил раскладывает уже загруженные операции без категории.
-    /// Один раз на версию правил; при ошибке повторит при следующем запуске.
+    /// Один раз на версию правил и после восстановления из копии; при ошибке повторит при следующем запуске.
     private func categorizeWithNewRules() async {
         guard categorizedWithRulesVersion < BuiltInRules.version else { return }
         do {

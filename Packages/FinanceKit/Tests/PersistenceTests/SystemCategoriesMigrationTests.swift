@@ -6,6 +6,15 @@ import Testing
 
 @Suite("Миграция новых системных категорий")
 struct SystemCategoriesMigrationTests {
+    @Test("Список категорий v9 не меняется: новые категории идут со своей миграцией")
+    func addedListIsFrozen() {
+        // Кто уже прошёл v9, дописанную сюда категорию не получит. Если тест упал, заведи
+        // новый список и миграцию `v10-…`, а этот верни как был.
+        #expect(SystemCategories.added.compactMap(\.systemKey) == [
+            "marketplaces", "beauty", "sport", "home", "electronics", "betting", "fees", "interest",
+        ])
+    }
+
     @Test("Установленное приложение получает новые категории в конце списка, повтор ничего не дублирует")
     func addsCategoriesToExistingDatabase() throws {
         let queue = try DatabaseQueue()

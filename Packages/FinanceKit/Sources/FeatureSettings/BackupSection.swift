@@ -1,3 +1,4 @@
+import DesignSystem
 import Domain
 import Foundation
 import SwiftUI
@@ -16,9 +17,11 @@ final class BackupModel {
     var message: String?
 
     private let service: any BackupService
+    private let defaults: UserDefaults
 
-    init(service: any BackupService) {
+    init(service: any BackupService, defaults: UserDefaults = .standard) {
         self.service = service
+        self.defaults = defaults
     }
 
     /// Имя файла копии: с датой, чтобы копии не путались.
@@ -62,6 +65,9 @@ final class BackupModel {
         defer { if access { url.stopAccessingSecurityScopedResource() } }
         do {
             try await service.restoreBackup(from: url)
+            // Копию могли сделать до новых встроенных правил: её операции без категории
+            // раскладываются заново (приложение следит за этой версией и запускает раскладку сразу).
+            defaults.removeObject(forKey: SettingsKey.categorizedWithRulesVersion)
             message = String(localized: "Данные восстановлены из копии.")
         } catch BackupError.notBackup {
             message = String(localized: "Этот файл не резервная копия MoneyTalks.")

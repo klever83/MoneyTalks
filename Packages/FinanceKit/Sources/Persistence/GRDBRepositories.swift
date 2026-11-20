@@ -120,6 +120,25 @@ public struct GRDBTransactionRepository: TransactionRepository {
         }
     }
 
+    public func fillCategories(_ categories: [FinanceTransaction.ID: FinanceCategory.ID]) async throws -> Int {
+        guard !categories.isEmpty else { return 0 }
+        let now = Date.now
+        let stillPending = Column("categoryID") == nil
+            && Column("categoryLocked") == false
+            && Column("kind") != FinanceTransaction.Kind.transfer.rawValue
+            && deletedAt == nil
+        return try await database.writer.write { db in
+            var count = 0
+            for (id, categoryID) in categories {
+                count += try TransactionRecord
+                    .filter(key: id.rawValue)
+                    .filter(stillPending)
+                    .updateAll(db, Column("categoryID").set(to: categoryID.rawValue), Column("updatedAt").set(to: now))
+            }
+            return count
+        }
+    }
+
     public func delete(_ id: FinanceTransaction.ID) async throws {
         let now = Date.now
         try await database.writer.write { db in

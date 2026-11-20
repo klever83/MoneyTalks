@@ -35,6 +35,7 @@ struct BuiltInRulesCoverageTests {
         ("BAR -7PYATNITS- BLR, GOMEL", "cafes"),
         ("ELEMENTUM BLR, GOMEL", "cafes"),
         ("FLOWERS.BY BLR, MINSK", "gifts"),
+        ("FASTEN BLR, MINSK", "taxi"),
     ])
     func merchants(merchant: String, expected: String) {
         #expect(key(merchant) == FinanceCategory.systemID(for: expected))
@@ -92,6 +93,16 @@ struct CategoryBackfillTests {
             }
         }
         func delete(_ id: FinanceTransaction.ID) async throws {}
+        func fillCategories(_ categories: [FinanceTransaction.ID: FinanceCategory.ID]) async throws -> Int {
+            var count = 0
+            for (id, categoryID) in categories {
+                guard let index = stored.firstIndex(where: { $0.id == id }),
+                      UncategorizedReview.isPending(stored[index]) else { continue }
+                stored[index].categoryID = categoryID
+                count += 1
+            }
+            return count
+        }
         func fingerprints(accountID: Account.ID) async throws -> Set<String> { [] }
         func earliestBookedAt(accountID: Account.ID) async throws -> Date? { nil }
     }

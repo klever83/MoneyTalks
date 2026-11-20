@@ -41,6 +41,10 @@ struct CashWithdrawalsTests {
         #expect(CashWithdrawals.isCashOperation(transaction(-5_000, "ATMALF GM08 ALMI")))
         #expect(!CashWithdrawals.isCashOperation(transaction(-500, "ATMOS BAR BLR, MINSK")))
         #expect(!CashWithdrawals.isCashOperation(transaction(-1_000, "PSTRUZHKA BLR, MINSK")))
+        // MCC покупки важнее текста; списание с описанием взноса — не взнос.
+        #expect(!CashWithdrawals.isCashOperation(transaction(-2_000, "CBU-301/14 BAPB ATM BLR, GOMEL", mcc: 5411)))
+        #expect(!CashWithdrawals.isCashOperation(transaction(-2_000, "PST 456 BLR, MINSK")))
+        #expect(!CashWithdrawals.isCashOperation(transaction(-2_000, "CASH-IN 123 BLR, GOMEL")))
     }
 
     @Test("Снятие становится переводом в кошелёк, в расходы не попадает")

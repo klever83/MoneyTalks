@@ -15,9 +15,12 @@ public enum CategoryBackfill {
         let pending = try await transactions.transactions(TransactionQuery())
             .filter(RuleBasedTransactionCategorizer.needsCategory)
         guard !pending.isEmpty else { return 0 }
-        let categorized = try await categorizer.categorize(pending).filter { $0.categoryID != nil }
-        guard !categorized.isEmpty else { return 0 }
-        try await transactions.save(categorized)
-        return categorized.count
+        var categories: [FinanceTransaction.ID: FinanceCategory.ID] = [:]
+        for transaction in try await categorizer.categorize(pending) {
+            if let categoryID = transaction.categoryID { categories[transaction.id] = categoryID }
+        }
+        // Только категория и только у тех, кто её всё ещё ждёт: раскладка идёт при запуске,
+        // и пользователь может в это время править операции.
+        return try await transactions.fillCategories(categories)
     }
 }
