@@ -48,4 +48,22 @@ struct SystemCategoriesMigrationTests {
         #expect(addedSorts.allSatisfy { $0 > lastSort - SystemCategories.added.count })
         #expect(Set(addedSorts).count == SystemCategories.added.count)
     }
+
+    @Test("Прошедшие v9 получают «Переводы людям» миграцией v10")
+    func addsTransfersToPeople() throws {
+        let queue = try DatabaseQueue()
+        let migrator = AppDatabase.migrator
+        try migrator.migrate(queue, upTo: "v9-more-system-categories")
+        try queue.write { db in
+            for category in SystemCategories.addedV10 {
+                try db.execute(sql: "DELETE FROM categories WHERE id = ?", arguments: [category.id.rawValue])
+            }
+        }
+        try migrator.migrate(queue)
+        let keys = try queue.read { db in
+            try String.fetchAll(db, sql: "SELECT systemKey FROM categories WHERE systemKey IS NOT NULL")
+        }
+        #expect(keys.contains("transfers_people"))
+        #expect(keys.count == SystemCategories.all.count)
+    }
 }

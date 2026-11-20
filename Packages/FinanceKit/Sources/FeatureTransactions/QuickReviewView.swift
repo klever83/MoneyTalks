@@ -173,11 +173,25 @@ struct QuickReviewView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .buttonStyle(.bordered)
+                if let people = transfersToPeople {
+                    Button {
+                        answer(step, with: people.id)
+                    } label: {
+                        VStack(alignment: .leading) {
+                            Text("Переводы другим людям")
+                            Text("Расход в категории «\(people.displayName)»")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.bordered)
+                }
                 Button {
                     pickingCategoryFor = step
                 } label: {
                     VStack(alignment: .leading) {
-                        Text("Переводы людям или оплата")
+                        Text("Оплата или что-то одно")
                         Text("Выбрать одну категорию для всех")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -249,6 +263,12 @@ struct QuickReviewView: View {
         let allowed = model.pickerCategories(isExpense: group.isExpense).map(\.category)
         let ids = review.suggestions(for: group, categories: allowed)
         chips = ids.compactMap { id in allowed.first { $0.id == id } }
+    }
+
+    /// Системная категория «Переводы людям», если она видна: ответ для платежей через приложение банка.
+    private var transfersToPeople: FinanceCategory? {
+        let id = FinanceCategory.systemID(for: "transfers_people")
+        return model.pickerCategories(isExpense: true).map(\.category).first { $0.id == id }
     }
 
     private func percent(_ share: Double) -> String {

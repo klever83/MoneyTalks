@@ -20,7 +20,7 @@ enum SystemCategories {
         expense("other", "Другое", "ellipsis.circle", "#8E8E93"),
         income("salary", "Зарплата", "banknote", "#34C759"),
         income("other_income", "Прочие доходы", "plus.circle", "#30D158"),
-    ] + added
+    ] + added + addedV10
 
     /// Категории, добавленные после первой версии: у установленных приложений их создаёт
     /// миграция `v9-more-system-categories`, у новых — та же `v1-system-categories`.
@@ -37,6 +37,12 @@ enum SystemCategories {
         expense("betting", "Ставки и лотереи", "dice", "#FF453A"),
         expense("fees", "Комиссии банка", "building.columns", "#636366"),
         income("interest", "Проценты", "percent", "#66D4CF"),
+    ]
+
+    /// Категории миграции `v10-transfers-to-people`: деньги другим людям (P2P, MOBILE BANK)
+    /// считаются расходом, но отдельно от покупок. Список тоже заморожен, как `added`.
+    static let addedV10: [FinanceCategory] = [
+        expense("transfers_people", "Переводы людям", "person.2", "#5E5CE6"),
     ]
 
     private static func expense(_ key: String, _ name: String, _ image: String, _ color: String) -> FinanceCategory {

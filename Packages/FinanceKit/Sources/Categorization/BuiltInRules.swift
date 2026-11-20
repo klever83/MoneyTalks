@@ -132,6 +132,11 @@ public enum BuiltInRules {
         for text in ["УСЛУГ БАНКА", "КОМИССИЯ"] {
             rules.append(rule("fees", [.merchantContains(text), .amountSign(.negative)], priority: merchantPriority, name: "fees:\(text)"))
         }
+        // Переводы другим людям: только списания. Перевод между своими счетами склеивается парой
+        // (`TransferMatcher`) или отмечается `OwnTransfers` раньше категорий, сюда он не доходит.
+        for text in ["P2P", "PERSON TO PERSON", "МЕЖДУ СЧЕТАМИ ФИЗИЧЕСКИХ ЛИЦ"] {
+            rules.append(rule("transfers_people", [.merchantContains(text), .amountSign(.negative)], priority: merchantPriority, name: "people:\(text)"))
+        }
         return rules
     }()
 

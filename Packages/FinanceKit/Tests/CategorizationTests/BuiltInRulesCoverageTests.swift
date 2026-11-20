@@ -36,6 +36,9 @@ struct BuiltInRulesCoverageTests {
         ("ELEMENTUM BLR, GOMEL", "cafes"),
         ("FLOWERS.BY BLR, MINSK", "gifts"),
         ("FASTEN BLR, MINSK", "taxi"),
+        ("CH Debit BLR MINSK P2P_SDBO", "transfers_people"),
+        ("Перевод P2P PERSON TO PERSON", "transfers_people"),
+        ("Перевод между счетами физических лиц через АК", "transfers_people"),
     ])
     func merchants(merchant: String, expected: String) {
         #expect(key(merchant) == FinanceCategory.systemID(for: expected))
@@ -167,13 +170,14 @@ struct CategoryBackfillTests {
             categorizer: RuleBasedTransactionCategorizer(repository: NoRules())
         )
 
-        #expect(count == 2)
+        #expect(count == 3)
         let byID = Dictionary(uniqueKeysWithValues: store.stored.map { ($0.id, $0) })
         #expect(byID[currency.id]?.kind == .transfer)
         #expect(byID[piggy.id]?.kind == .transfer)
         #expect(byID[currency.id]?.transferPairID == nil)
-        // Перевод человеку может быть чужим счётом, а выбор пользователя не трогается.
+        // Перевод человеку может быть чужим счётом: расход «Переводы людям». Выбор пользователя не трогается.
         #expect(byID[p2p.id]?.kind == .expense)
+        #expect(byID[p2p.id]?.categoryID == FinanceCategory.systemID(for: "transfers_people"))
         #expect(byID[lockedOwn.id]?.kind == .expense)
     }
 }
