@@ -113,4 +113,70 @@ struct MerchantKeyMigrationTests {
         }
         #expect(conditions == [.merchantKey("super tur")])
     }
+
+    @Test("С v11 до конца: разные мерчанты не сливаются, верный ключ не меняется")
+    func fullPathKeepsDistinctRules() throws {
+        let queue = try DatabaseQueue()
+        let migrator = AppDatabase.migrator
+        try migrator.migrate(queue, upTo: "v11-transfer-declined")
+
+        let account = Account(name: "Карта", kind: .card, currency: .byn)
+        let travel = FinanceCategory.systemID(for: "travel")
+        let subscriptions = FinanceCategory.systemID(for: "subscriptions")
+        let raws = ["Retail NLD BOOKING.COM", "Retail USA PAYPAL.COM", "SUPER TUR BLR, MINSK", "SUPER BLR, MINSK"]
+        let rules = raws.map { raw in
+            CategoryRule(conditions: [.merchantKey(MerchantKeyMigration.keyV1(raw))], categoryID: travel, origin: .user)
+        }
+        #expect(rules.map(\.conditions) == [
+            [.merchantKey("nld booking com")], [.merchantKey("usa paypal com")],
+            [.merchantKey("super tur")], [.merchantKey("super")],
+        ])
+        try queue.write { db in
+            try AccountRecord(account).insert(db)
+            for raw in raws {
+                let transaction = FinanceTransaction(
+                    accountID: account.id, bookedAt: .now,
+                    amount: Money(minorUnits: -100, currency: .byn), merchantRaw: raw, source: .imported
+                )
+                try TransactionRecord(transaction).insert(db)
+            }
+            for (index, rule) in rules.enumerated() {
+                var rule = rule
+                if index == 1 { rule.categoryID = subscriptions }
+                try CategoryRuleRecord(rule, createdAt: .now, updatedAt: .now).insert(db)
+            }
+        }
+
+        try migrator.migrate(queue)
+
+        let live = try queue.read { db in
+            try CategoryRuleRecord.filter(Column("deletedAt") == nil).fetchAll(db).compactMap(\.domain)
+        }
+        let byID = Dictionary(uniqueKeysWithValues: live.map { ($0.id, $0) })
+        #expect(live.count == 4)
+        #expect(byID[rules[0].id]?.conditions == [.merchantKey("booking com")])
+        #expect(byID[rules[1].id]?.conditions == [.merchantKey("paypal com")])
+        #expect(byID[rules[1].id]?.categoryID == subscriptions)
+        #expect(byID[rules[2].id]?.conditions == [.merchantKey("super tur")])
+        #expect(byID[rules[3].id]?.conditions == [.merchantKey("super")])
+    }
+
+    @Test("Ключ без операций теряет только служебные слова: «super tur» не становится «super»")
+    func keyWithoutTransactions() throws {
+        let queue = try DatabaseQueue()
+        let migrator = AppDatabase.migrator
+        try migrator.migrate(queue, upTo: "v12-merchant-key-place")
+        let rule = CategoryRule(conditions: [.merchantKey("super tur")], categoryID: FinanceCategory.systemID(for: "travel"), origin: .user)
+        try queue.write { db in
+            try CategoryRuleRecord(rule, createdAt: .now, updatedAt: .now).insert(db)
+        }
+
+        try migrator.migrate(queue)
+
+        let conditions = try queue.read { db in
+            try CategoryRuleRecord.fetchOne(db, key: rule.id.rawValue)?.domain?.conditions
+        }
+        #expect(conditions == [.merchantKey("super tur")])
+        #expect(MerchantNormalizer.withoutServiceWords("покупка товара gusto") == "gusto")
+    }
 }

@@ -8,9 +8,11 @@ import GRDB
 /// Обе версии передаются замороженными копиями, кроме последней (живая функция): тогда старая
 /// база проходит v1 → v2 → v3 по шагам.
 enum MerchantKeyMigration {
-    /// Новый ключ берётся по операциям, у которых был старый: у `evropochta minskiy rayon` это
-    /// `evropochta`, самый частый, если вариантов несколько. Без таких операций ключ
-    /// пересчитывается из самого старого ключа, а пустой результат оставляет правило как было.
+    /// Ключ, который текущая функция уже даёт хотя бы одной живой операции, верный и не меняется.
+    /// Иначе новый ключ берётся по операциям, у которых был старый: у `evropochta minskiy rayon`
+    /// это `evropochta`, самый частый, если вариантов несколько. Без таких операций из ключа
+    /// убираются только служебные слова (`MerchantNormalizer.withoutServiceWords`), а пустой
+    /// результат оставляет правило как было.
     /// После перевода правила с одинаковыми условиями сливаются: остаётся последнее изменённое.
     static func migrate(
         _ db: Database,
@@ -22,24 +24,31 @@ enum MerchantKeyMigration {
         guard !oldKeys.isEmpty else { return }
 
         var counts: [String: [String: Int]] = [:]
+        var alreadyCurrent: Set<String> = []
         let rows = try Row.fetchCursor(
             db,
             sql: "SELECT merchantRaw, COUNT(*) AS n FROM transactions WHERE deletedAt IS NULL GROUP BY merchantRaw"
         )
         while let row = try rows.next() {
             let raw: String = row["merchantRaw"]
+            let new = currentKey(raw)
+            if oldKeys.contains(new) {
+                alreadyCurrent.insert(new)
+            }
             let old = legacyKey(raw)
             guard oldKeys.contains(old) else { continue }
-            let new = currentKey(raw)
             guard !new.isEmpty else { continue }
             counts[old, default: [:]][new, default: 0] += row["n"] as Int
         }
 
         func newKey(for old: String) -> String {
+            if alreadyCurrent.contains(old) {
+                return old
+            }
             if let best = counts[old]?.max(by: { ($0.value, $1.key) < ($1.value, $0.key) }) {
                 return best.key
             }
-            let recomputed = currentKey(old)
+            let recomputed = MerchantNormalizer.withoutServiceWords(old)
             return recomputed.isEmpty ? old : recomputed
         }
 

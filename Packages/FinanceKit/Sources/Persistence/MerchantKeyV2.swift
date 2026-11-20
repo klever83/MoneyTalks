@@ -1,7 +1,8 @@
 import Foundation
 
-/// `MerchantNormalizer.key` в версии v12 (`v12-merchant-key-place`), замороженный: по нему
-/// записаны ключи правил, прошедших v12. Не менять. Следующее изменение ключа — своя копия.
+/// `MerchantNormalizer.key` из #88, замороженный: по нему записаны ключи правил, которые
+/// прошли `v12-merchant-key-place` в той версии (симулятор, сборки за полчаса до #89).
+/// Их переводит `v13-merchant-key-last-country`. Не менять.
 enum MerchantKeyV2 {
     private static let trailingNoise: Set<String> = [
         "BY", "BLR", "BELARUS", "MINSK", "МИНСК", "BREST", "GRODNO", "GOMEL", "VITEBSK", "MOGILEV",

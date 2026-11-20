@@ -48,6 +48,17 @@ public enum MerchantNormalizer {
             .lowercased()
     }
 
+    /// Сохранённый ключ без служебных слов текущей версии, без разбора места: для миграций,
+    /// когда операций с этим ключом не осталось. Полный `key` на ключе не идемпотентен:
+    /// в `super tur` он принял бы `TUR` за код страны.
+    public static func withoutServiceWords(_ key: String) -> String {
+        tokens(key)
+            .map(\.text)
+            .filter { !isServiceToken($0) }
+            .joined(separator: " ")
+            .lowercased()
+    }
+
     /// Буквенно-цифровой кусок строки и номер слова (по пробелам), из которого он взят:
     /// город после кода страны — одно слово, даже если это `ITUNES.COM`.
     private struct Token {
