@@ -74,9 +74,8 @@ struct QuickReviewTests {
 
     @Test("«Это не перевод»: непарный перевод возвращается в расходы без категории, парный не трогается")
     func undoTransfer() throws {
-        let marked = try #require(QuickReview.markAsTransfers(
-            try #require(QuickReview.channelGroups([transaction("MOBILE BANK BLR, MINSK", minor: -2000)]).first)
-        ).first)
+        let channel = try #require(QuickReview.channelGroups([transaction("MOBILE BANK BLR, MINSK", minor: -2000)]).first)
+        let marked = try #require(QuickReview.markAsTransfers(channel).first)
         let restored = try #require(QuickReview.undoTransfer(marked))
         #expect(restored.kind == .expense)
         #expect(restored.categoryID == nil && !restored.categoryLocked)
