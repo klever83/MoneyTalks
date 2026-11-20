@@ -1,0 +1,62 @@
+/// Перевод между своими счетами, который банк так и назвал, даже если вторая сторона не нашлась.
+///
+/// `TransferMatcher` склеивает перевод, только когда в импорте есть обе стороны. Часто второй стороны нет:
+/// валюту купили на счёт, выписку по которому не загружали, деньги ушли в копилку или вернулись
+/// из кошелька на свою карту. Тогда без этого правила перевод считался бы расходом без категории:
+/// у Павла покупка валюты между своими счетами — 19 тыс. BYN «трат».
+///
+/// Только формулировки, где банк прямо пишет, что счёт свой. «Перевод между счетами физических лиц»
+/// и P2P сюда не входят: это могут быть деньги другому человеку.
+public enum OwnTransfers {
+    /// Фрагменты описания в нижнем регистре.
+    static let phrases = [
+        // Приорбанк, выписка по счёту: «Перевод с продажей валюты по списку ПДПП между счетами клиента».
+        "между счетами клиента",
+        // Приорбанк, выписка по контракту: «Payment From Client Contract», «Payment To Client Contract».
+        "client contract",
+        // Альфа-Банк: «Перевод через АК в рамках одного ФЛ», «Перевод на копилку».
+        "в рамках одного фл",
+        "на копилку",
+        // Оплати: вывод из электронного кошелька на свою карту.
+        "перечисление средств электронного кошелька",
+        // Общие формулировки.
+        "между своими счетами",
+        "между своими картами",
+        "на свою карту",
+        "на свой счет",
+        "на свой счёт",
+    ]
+
+    /// MCC, с которыми операция может быть переводом (как у `TransferMatcher`).
+    static let transferMCC: Set<Int> = [4829, 6010, 6011, 6012, 6051, 6538, 6540]
+
+    /// Описание говорит, что это перевод на свой счёт, а MCC, если он есть, не покупка.
+    public static func matches(_ transaction: FinanceTransaction) -> Bool {
+        if let mcc = transaction.mcc, !transferMCC.contains(mcc) { return false }
+        let text = transaction.merchantRaw.lowercased()
+        // Комиссия за перевод — расход, а не сам перевод.
+        if text.contains("комисс") || text.contains("плата за") { return false }
+        return phrases.contains { text.contains($0) }
+    }
+
+    /// Операция, которую стоит отметить переводом без пары: не связана, не перевод, категорию
+    /// пользователь не выбирал и не убирал, не удалена и не холд.
+    public static func shouldMark(_ transaction: FinanceTransaction) -> Bool {
+        transaction.deletedAt == nil
+            && !transaction.isPending
+            && transaction.transferPairID == nil
+            && transaction.kind != .transfer
+            && transaction.categoryID == nil
+            && !transaction.categoryLocked
+            && matches(transaction)
+    }
+
+    /// Подходящая операция становится переводом без пары, остальные возвращаются как есть.
+    /// Снять отметку можно в карточке операции («Это не перевод»).
+    public static func marked(_ transaction: FinanceTransaction) -> FinanceTransaction {
+        guard shouldMark(transaction) else { return transaction }
+        var transfer = transaction
+        transfer.kind = .transfer
+        return transfer
+    }
+}

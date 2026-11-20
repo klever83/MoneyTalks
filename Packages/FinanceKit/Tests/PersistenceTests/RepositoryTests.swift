@@ -293,4 +293,29 @@ struct RepositoryTests {
         #expect(byID[locked.id]?.categoryID == nil)
         #expect(byID[transfer.id]?.categoryID == nil)
     }
+
+    @Test("Отметка переводом только у операций, которые ждут категорию и не связаны")
+    func markTransfers() async throws {
+        let card = Account(name: "Карта", kind: .card, currency: .byn)
+        try await accounts.save(card)
+        func transaction(_ change: (inout FinanceTransaction) -> Void = { _ in }) -> FinanceTransaction {
+            var transaction = FinanceTransaction(
+                accountID: card.id, bookedAt: .now,
+                amount: Money(minorUnits: -100, currency: .byn), merchantRaw: "Перевод между своими счетами", source: .imported
+            )
+            change(&transaction)
+            return transaction
+        }
+        let pending = transaction()
+        let chosen = transaction { $0.categoryID = FinanceCategory.systemID(for: "other") }
+        let locked = transaction { $0.categoryLocked = true }
+        let all = [pending, chosen, locked]
+        try await transactions.save(all)
+
+        #expect(try await transactions.markTransfers(all.map(\.id)) == 1)
+        let byID = Dictionary(uniqueKeysWithValues: try await transactions.transactions(TransactionQuery()).map { ($0.id, $0) })
+        #expect(byID[pending.id]?.kind == .transfer)
+        #expect(byID[chosen.id]?.kind == .expense)
+        #expect(byID[locked.id]?.kind == .expense)
+    }
 }

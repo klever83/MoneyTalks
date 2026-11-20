@@ -103,6 +103,16 @@ struct CategoryBackfillTests {
             }
             return count
         }
+        func markTransfers(_ ids: [FinanceTransaction.ID]) async throws -> Int {
+            var count = 0
+            for id in ids {
+                guard let index = stored.firstIndex(where: { $0.id == id }),
+                      UncategorizedReview.isPending(stored[index]), stored[index].transferPairID == nil else { continue }
+                stored[index].kind = .transfer
+                count += 1
+            }
+            return count
+        }
         func fingerprints(accountID: Account.ID) async throws -> Set<String> { [] }
         func earliestBookedAt(accountID: Account.ID) async throws -> Date? { nil }
     }
@@ -142,5 +152,28 @@ struct CategoryBackfillTests {
         #expect(byID[unknown.id]?.categoryID == nil)
         #expect(byID[locked.id]?.categoryID == nil)
         #expect(byID[transfer.id]?.categoryID == nil)
+    }
+
+    @Test("Перевод на свой счёт без второй стороны становится переводом, а не расходом без категории")
+    func backfillOwnTransfers() async throws {
+        let currency = transaction("Перевод с продажей валюты по списку ПДПП между счетами клиента")
+        let piggy = transaction("Перевод на копилку по механике по расписанию")
+        let p2p = transaction("CH Debit BLR MINSK P2P SDBO")
+        let lockedOwn = transaction("Перевод через АК в рамках одного ФЛ") { $0.categoryLocked = true }
+        let store = Store([currency, piggy, p2p, lockedOwn])
+
+        let count = try await CategoryBackfill.run(
+            transactions: store,
+            categorizer: RuleBasedTransactionCategorizer(repository: NoRules())
+        )
+
+        #expect(count == 2)
+        let byID = Dictionary(uniqueKeysWithValues: store.stored.map { ($0.id, $0) })
+        #expect(byID[currency.id]?.kind == .transfer)
+        #expect(byID[piggy.id]?.kind == .transfer)
+        #expect(byID[currency.id]?.transferPairID == nil)
+        // Перевод человеку может быть чужим счётом, а выбор пользователя не трогается.
+        #expect(byID[p2p.id]?.kind == .expense)
+        #expect(byID[lockedOwn.id]?.kind == .expense)
     }
 }

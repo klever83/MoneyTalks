@@ -104,6 +104,23 @@ struct ImportPlannerTests {
         #expect(plan.transferLinks == [TransferLink(transactionID: income.id, pairID: pairID)])
     }
 
+    @Test("Перевод на свой счёт без второй стороны в импорте становится переводом без пары")
+    func ownTransferWithoutPair() {
+        var statement = statement
+        statement.rows.append(row(-1_900_000, "Перевод с продажей валюты по списку ПДПП между счетами клиента", hours: 4))
+        let account = ImportPlanner.proposedAccount(for: statement, bank: bank)
+        let plan = ImportPlanner.plan(
+            statement: statement, bank: bank, account: account, isNewAccount: true,
+            existingFingerprints: [], existingAccounts: [], earliestTransactionDate: nil,
+            recentTransactions: [], walletName: "Наличные", excludedLinks: []
+        )
+        let own = plan.newTransactions.last
+        #expect(own?.kind == .transfer)
+        #expect(own?.transferPairID == nil)
+        // Перевод человеку (P2P) без пары остаётся расходом.
+        #expect(plan.newTransactions[2].kind == .expense)
+    }
+
     @Test("Более ранняя выписка в существующий счёт задаёт его начальный остаток")
     func earlierStatementUpdatesOpeningBalance() {
         var statement = statement
