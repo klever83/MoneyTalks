@@ -18,7 +18,8 @@ public enum BuiltInRules {
     /// Версия набора правил. Увеличивается при каждом изменении: после обновления приложения
     /// уже загруженные операции без категории раскладываются заново (`CategoryBackfill`).
     /// 5: ключ мерчанта без места (`v12-merchant-key-place`), «всегда так» накрывает больше операций.
-    public static let version = 5
+    /// 6: ключ по последнему коду страны (`v13-merchant-key-last-country`).
+    public static let version = 6
 
     public static let all: [CategoryRule] = merchantRules + mccRules + keywordRules
 

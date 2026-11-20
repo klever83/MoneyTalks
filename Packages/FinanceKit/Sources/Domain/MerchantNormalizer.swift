@@ -38,41 +38,71 @@ public enum MerchantNormalizer {
     /// Пустой ключ значит, что мерчанта в описании нет (P2P, ЕРИП, переводы).
     ///
     /// Сохранённые правила хранят ключ: при изменении функции их переводит миграция
-    /// (`v12-merchant-key-place`), иначе «всегда так» молча перестанет срабатывать.
+    /// (`v12-merchant-key-place`, `v13-merchant-key-last-country`) с замороженной копией прежней
+    /// функции, иначе «всегда так» молча перестанет срабатывать.
     public static func key(_ raw: String) -> String {
         withoutPlace(tokens(raw))
+            .map(\.text)
             .filter { !isServiceToken($0) }
             .joined(separator: " ")
             .lowercased()
     }
 
-    private static func tokens(_ raw: String) -> [String] {
+    /// Сохранённый ключ без служебных слов текущей версии, без разбора места: для миграций,
+    /// когда операций с этим ключом не осталось. Полный `key` на ключе не идемпотентен:
+    /// в `super tur` он принял бы `TUR` за код страны.
+    public static func withoutServiceWords(_ key: String) -> String {
+        tokens(key)
+            .map(\.text)
+            .filter { !isServiceToken($0) }
+            .joined(separator: " ")
+            .lowercased()
+    }
+
+    /// Буквенно-цифровой кусок строки и номер слова (по пробелам), из которого он взят:
+    /// город после кода страны — одно слово, даже если это `ITUNES.COM`.
+    private struct Token {
+        let text: String
+        let word: Int
+    }
+
+    private static func tokens(_ raw: String) -> [Token] {
         raw.uppercased()
-            .split { !($0.isLetter || $0.isNumber) }
-            .map(String.init)
+            .split(whereSeparator: \.isWhitespace)
+            .enumerated()
+            .flatMap { word, part in
+                part.split { !($0.isLetter || $0.isNumber) }.map { Token(text: String($0), word: word) }
+            }
     }
 
     private static func isServiceToken(_ token: String) -> Bool {
         token.allSatisfy(\.isNumber) || serviceWords.contains(token)
     }
 
-    /// Убирает место операции по первому коду страны. Перед мерчантом (`Retail GEO TBILISI SPAR`,
-    /// перед кодом только служебные слова) уходят код и город. После мерчанта
-    /// (`EVROPOCHTA BLR MINSKIY RAYON`) уходит всё от кода до конца строки.
+    /// Убирает место операции по коду страны. Перед мерчантом (`Retail GEO TBILISI SPAR`,
+    /// перед первым кодом только служебные слова) уходят код и город. После мерчанта
+    /// (`EVROPOCHTA BLR, MINSKIY RAYON`) уходит всё от последнего кода до конца строки:
+    /// код внутри названия (`SUPER TUR BLR, MINSK`) остаётся.
     /// Без служебных слов перед кодом строка не трогается: `USA NAILS` — это название.
     /// Город из нескольких слов (`Retail USA NEW YORK SHOP`) уходит только первым словом.
-    private static func withoutPlace(_ tokens: [String]) -> [String] {
+    private static func withoutPlace(_ tokens: [Token]) -> [Token] {
         // Альфа-Банк пишет место перед типом операции: `WARSZAWA Покупка товара / получение услуг SHOP`.
-        if let index = tokens.indices.dropLast().first(where: { tokens[$0] == "ПОКУПКА" && tokens[$0 + 1] == "ТОВАРА" }) {
+        if let index = tokens.indices.dropLast().first(where: { tokens[$0].text == "ПОКУПКА" && tokens[$0 + 1].text == "ТОВАРА" }) {
             return Array(tokens[index...])
         }
-        guard let index = tokens.firstIndex(where: countryCodes.contains), index > 0 else { return tokens }
-        let before = tokens[..<index]
-        if before.contains(where: { !isServiceToken($0) }) {
-            return Array(before)
+        let isCountry = { (token: Token) in countryCodes.contains(token.text) }
+        guard let first = tokens.firstIndex(where: isCountry), first > 0 else { return tokens }
+        let before = tokens[..<first]
+        if before.contains(where: { !isServiceToken($0.text) }) {
+            let last = tokens.lastIndex(where: isCountry) ?? first
+            return Array(tokens[..<last])
         }
-        // Город — одно слово после кода, если за ним ещё что-то есть: иначе это и есть мерчант.
-        let rest = index + 2 < tokens.count ? index + 2 : index + 1
+        // Город — остаток слова с кодом (`BLR,MINSK`) или следующее слово. Он уходит, только если
+        // после него остаётся мерчант: в `Retail BLR EVROOPT 12` и `Retail NLD BOOKING.COM` города нет.
+        let afterCode = tokens[(first + 1)...]
+        let cityWord = afterCode.first { $0.word == tokens[first].word }?.word ?? afterCode.first?.word
+        let afterCity = afterCode.drop { $0.word == cityWord }
+        let rest = afterCity.contains(where: { !isServiceToken($0.text) }) ? afterCity.startIndex : first + 1
         return Array(before) + tokens[rest...]
     }
 

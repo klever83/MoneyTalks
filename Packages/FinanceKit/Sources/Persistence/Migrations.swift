@@ -181,7 +181,17 @@ extension AppDatabase {
         migrator.registerMigration("v12-merchant-key-place") { db in
             // Ключ мерчанта без места после кода страны и без «покупка товара» (Альфа):
             // правила «всегда так» переводятся на новый ключ.
-            try MerchantKeyMigration.migrate(db, legacyKey: MerchantKeyMigration.keyV1)
+            // Сразу в текущий ключ: промежуточная версия v2 сливала разных мерчантов
+            // (`Retail NLD BOOKING.COM` и `Retail USA PAYPAL.COM` давали `com`). Базы, которые
+            // v12 уже провела через v2, переводит v13.
+            try MerchantKeyMigration.migrate(db, from: MerchantKeyMigration.keyV1, to: MerchantNormalizer.key)
+        }
+
+        migrator.registerMigration("v13-merchant-key-last-country") { db in
+            // Базы, прошедшие v12 в версии #88 (ключ `MerchantKeyV2`): место режется по последнему
+            // коду страны (`SUPER TUR BLR, MINSK`), без города после кода уходит только код.
+            // После v12 текущей версии ключи уже верные, и миграция их не трогает.
+            try MerchantKeyMigration.migrate(db, from: MerchantKeyV2.key, to: MerchantNormalizer.key)
         }
 
         return migrator

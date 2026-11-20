@@ -185,6 +185,13 @@ struct AlwaysRuleTests {
         ("EVROPOCHTA BLR, MINSKIY RAYON", "evropochta"),
         ("YANDEX.EDA BLR, MINSK", "yandex eda"),
         ("MOBILE BANK BLR, MINSK", "mobile"),
+        // Без города после кода уходит только код, город — одно слово по пробелам.
+        ("Retail BLR EVROOPT 12", "evroopt"),
+        ("Retail NLD BOOKING.COM", "booking com"),
+        ("Retail IRL ITUNES.COM APPLE.COM/BILL", "apple com bill"),
+        ("CH Debit BLR MINSK P2P SDBO NO FEE", ""),
+        // Код страны внутри названия: место режется по последнему коду.
+        ("SUPER TUR BLR, MINSK", "super tur"),
         // Название, которое начинается с кода страны, не трогается.
         ("USA NAILS MINSK BY", "usa nails"),
         // Альфа-Банк: «покупка товара» и «G» из «G.MINSK».
