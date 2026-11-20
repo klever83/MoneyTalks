@@ -1,4 +1,5 @@
 import BankParsersBY
+import Categorization
 import DesignSystem
 import FeatureAccounts
 import FeatureAnalytics
@@ -11,6 +12,7 @@ import SwiftUI
 public struct AppRootView: View {
     private let dependencies: Dependencies
     @AppStorage(SettingsKey.appearance) private var appearance: Appearance = .dark
+    @AppStorage(SettingsKey.categorizedWithRulesVersion) private var categorizedWithRulesVersion = 0
     @State private var lock = AppLock()
     @State private var selectedTab = RootTab.overview
     /// Выписка, открытая в MoneyTalks через «Поделиться» или «Открыть в»: её подхватывает вкладка импорта.
@@ -76,6 +78,19 @@ public struct AppRootView: View {
         }
         .appLock(lock)
         .preferredColorScheme(appearance.colorScheme)
+        .task { await categorizeWithNewRules() }
+    }
+
+    /// После обновления встроенных правил раскладывает уже загруженные операции без категории.
+    /// Один раз на версию правил; при ошибке повторит при следующем запуске.
+    private func categorizeWithNewRules() async {
+        guard categorizedWithRulesVersion < BuiltInRules.version else { return }
+        do {
+            try await CategoryBackfill.run(transactions: dependencies.transactions, categorizer: dependencies.categorizer)
+            categorizedWithRulesVersion = BuiltInRules.version
+        } catch {
+            // Не критично: операции останутся без категории до следующего запуска.
+        }
     }
 }
 

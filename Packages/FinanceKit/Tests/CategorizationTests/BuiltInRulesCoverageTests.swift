@@ -1,0 +1,135 @@
+import Categorization
+import Domain
+import Foundation
+import Testing
+
+/// Названия в том виде, в каком они приходят в выписках без MCC (Приорбанк): кавычки заменены
+/// дефисами, префиксы «I.-SHOP», «RBO», хвост эквайера «BAPB», перенос внутри слова.
+@Suite("Встроенные правила: выписки без MCC")
+struct BuiltInRulesCoverageTests {
+    let categorizer = RuleCategorizer(rules: BuiltInRules.all)
+
+    func key(_ merchant: String, minor: Int64 = -1000, mcc: Int? = nil) -> FinanceCategory.ID? {
+        categorizer.suggest(for: FinanceTransaction(
+            accountID: Account.ID(), bookedAt: .now,
+            amount: Money(minorUnits: minor, currency: .byn),
+            merchantRaw: merchant, mcc: mcc, source: .imported
+        ))?.categoryID
+    }
+
+    @Test("Мерчанты из выписок Приорбанка", arguments: [
+        ("YANDEX.EDA BLR, MINSK", "cafes"),
+        ("I.-SHOP -WILDBERRIES.BY- BLR, MINSK", "marketplaces"),
+        ("OMBSHOP.OZON.BY BLR, MINSK", "marketplaces"),
+        ("I.-SHOP-WWW.PASS.R W.BY- BLR, MINSK", "transport"),
+        ("ZOLOTOE YABLOKO BLR, MINSK", "beauty"),
+        ("FITNES-KLUB PRIME GYM BLR, GOMEL", "sport"),
+        ("SHOP N9873 FIX PRICE BLR, GOMEL", "home"),
+        ("DNS ELEKTRONIKA BLR, GOMEL", "electronics"),
+        ("I.-RES.-WWW.PM.BY- BLR, MINSK", "betting"),
+        ("ERIP YANDEX.PLUS PARITET BLR, MINSK", "subscriptions"),
+        ("SHOP -SEM PYATNITS- BLR, GOMEL", "groceries"),
+        ("SHOP -MARK FORMEL- BLR, GOMEL", "clothes"),
+        ("WWW.DODOPIZZA.BY BLR, MINSK", "cafes"),
+        ("LABORATORIYA HELIX BLR, GOMEL", "health"),
+        ("BAR -7PYATNITS- BLR, GOMEL", "cafes"),
+        ("ELEMENTUM BLR, GOMEL", "cafes"),
+        ("FLOWERS.BY BLR, MINSK", "gifts"),
+    ])
+    func merchants(merchant: String, expected: String) {
+        #expect(key(merchant) == FinanceCategory.systemID(for: expected))
+    }
+
+    @Test("Общие слова: тип места по названию", arguments: [
+        ("KAFE -ZVEZDA- BLR, GOMEL", "cafes"),
+        ("REST.-PIVNAYA- BLR, MINSK", "cafes"),
+        ("SUShI-BAR TEST BLR, MINSK", "cafes"),
+        ("SUPERMARKET TEST BLR, MINSK", "groceries"),
+        ("AZS N20 BAPB BLR, GOMEL", "transport"),
+        ("PT CHSUP TEST-DENT BLR, GOMEL", "health"),
+        ("STELLA TEST HOTEL", "travel"),
+        ("BROW BAR TEST BLR, MINSK", "beauty"),
+    ])
+    func keywords(merchant: String, expected: String) {
+        #expect(key(merchant) == FinanceCategory.systemID(for: expected))
+    }
+
+    @Test("Общее слово слабее MCC: у банков с MCC решает код")
+    func mccBeatsKeyword() {
+        #expect(key("BAR TEST", mcc: 5411) == FinanceCategory.systemID(for: "groceries"))
+    }
+
+    @Test("Общие слова и короткие названия только целиком", arguments: [
+        "BARS SHOP", "STUDENT CLUB", "PIZZALAND", "SPARTAK", "OZONE TEST", "SUNFLOWER TEST", "WWW.SPM.BY TEST",
+    ])
+    func keywordsNeedBoundaries(merchant: String) {
+        #expect(key(merchant) == nil)
+    }
+
+    @Test("Некарточные операции Приорбанка: зарплата, проценты, комиссия")
+    func bankOperations() {
+        #expect(key("Зачисление по ведомости Зачисление согласно ПП N1 от 01.01.2026.", minor: 100_000)
+            == FinanceCategory.systemID(for: "salary"))
+        #expect(key("Уплата процентов", minor: 350) == FinanceCategory.systemID(for: "interest"))
+        #expect(key("Уплата наращенных процентов", minor: 10) == FinanceCategory.systemID(for: "interest"))
+        #expect(key("Оплата услуг банка", minor: -500) == FinanceCategory.systemID(for: "fees"))
+        #expect(key("Уплата процентов", minor: -350) == nil)
+    }
+}
+
+@Suite("Раскладка сохранённых операций")
+struct CategoryBackfillTests {
+    final class Store: TransactionRepository, @unchecked Sendable {
+        var stored: [FinanceTransaction]
+        init(_ transactions: [FinanceTransaction]) { stored = transactions }
+        func observeTransactions(_ query: TransactionQuery) -> AsyncThrowingStream<[FinanceTransaction], any Error> {
+            AsyncThrowingStream { $0.finish() }
+        }
+        func transactions(_ query: TransactionQuery) async throws -> [FinanceTransaction] { stored }
+        func save(_ transactions: [FinanceTransaction]) async throws {
+            for transaction in transactions {
+                if let index = stored.firstIndex(where: { $0.id == transaction.id }) { stored[index] = transaction }
+            }
+        }
+        func delete(_ id: FinanceTransaction.ID) async throws {}
+        func fingerprints(accountID: Account.ID) async throws -> Set<String> { [] }
+        func earliestBookedAt(accountID: Account.ID) async throws -> Date? { nil }
+    }
+
+    struct NoRules: CategoryRuleRepository {
+        func rules() async throws -> [CategoryRule] { [] }
+        func save(_ rule: CategoryRule) async throws {}
+        func delete(_ id: CategoryRule.ID) async throws {}
+    }
+
+    func transaction(_ merchant: String, change: (inout FinanceTransaction) -> Void = { _ in }) -> FinanceTransaction {
+        var transaction = FinanceTransaction(
+            accountID: Account.ID(), bookedAt: .now,
+            amount: Money(minorUnits: -1000, currency: .byn),
+            merchantRaw: merchant, source: .imported
+        )
+        change(&transaction)
+        return transaction
+    }
+
+    @Test("Операции без категории получают её, выбор пользователя и переводы не трогаются")
+    func backfill() async throws {
+        let cafe = transaction("YANDEX.EDA BLR, MINSK")
+        let unknown = transaction("SOMETHING UNKNOWN")
+        let locked = transaction("YANDEX.EDA BLR, MINSK") { $0.categoryLocked = true }
+        let transfer = transaction("YANDEX.EDA BLR, MINSK") { $0.kind = .transfer }
+        let store = Store([cafe, unknown, locked, transfer])
+
+        let count = try await CategoryBackfill.run(
+            transactions: store,
+            categorizer: RuleBasedTransactionCategorizer(repository: NoRules())
+        )
+
+        #expect(count == 1)
+        let byID = Dictionary(uniqueKeysWithValues: store.stored.map { ($0.id, $0) })
+        #expect(byID[cafe.id]?.categoryID == FinanceCategory.systemID(for: "cafes"))
+        #expect(byID[unknown.id]?.categoryID == nil)
+        #expect(byID[locked.id]?.categoryID == nil)
+        #expect(byID[transfer.id]?.categoryID == nil)
+    }
+}

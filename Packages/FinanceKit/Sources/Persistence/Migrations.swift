@@ -158,6 +158,23 @@ extension AppDatabase {
             try db.create(index: "transactions_booked_at", on: "transactions", columns: ["bookedAt"])
         }
 
+        migrator.registerMigration("v9-more-system-categories") { db in
+            // Новые системные категории для уже установленных приложений. У новых их уже создала
+            // `v1-system-categories`, поэтому `INSERT OR IGNORE`. В конец списка, после категорий пользователя.
+            for category in SystemCategories.added {
+                try db.execute(
+                    sql: """
+                    INSERT OR IGNORE INTO categories (id, name, systemKey, systemImage, colorHex, parentID, kind, sortOrder, updatedAt)
+                    VALUES (?, ?, ?, ?, ?, NULL, ?, (SELECT COALESCE(MAX(sortOrder), -1) + 1 FROM categories), ?)
+                    """,
+                    arguments: [
+                        category.id.rawValue, category.name, category.systemKey, category.systemImage,
+                        category.colorHex, category.kind.rawValue, category.updatedAt,
+                    ]
+                )
+            }
+        }
+
         return migrator
     }
 }

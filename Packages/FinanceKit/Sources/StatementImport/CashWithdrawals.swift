@@ -23,11 +23,17 @@ public enum CashWithdrawals {
         if isFee(transaction.merchantRaw) { return false }
         if let mcc = transaction.mcc, cashMCC.contains(mcc) { return true }
         let text = transaction.merchantRaw
-        // Приорбанк: тип операции в начале описания, `ATM BLR GOMEL …`, `Cash BLR Minsk Dop.ofis …`.
-        if text.contains(/^(?:ATM|Cash)\s/) { return true }
+        // Приорбанк, выписка по контракту: тип операции в начале описания, `ATM BLR GOMEL …`, `Cash BLR Minsk Dop.ofis …`.
+        // Банкоматы других банков с кодом банка: `ATMTBK GM11 GOMEL …`, `ATMALF GM08 ALMI`.
+        if text.contains(/^(?:ATM(?:[A-Z]{3})?|Cash)\s/) { return true }
+        // Приорбанк, выписка по счёту: банкомат словом в названии (`CBU-301/14 BAPB ATM BLR, GOMEL`),
+        // взнос через терминал (`CASH-IN 123`, `PST 123`).
+        if text.contains(/\bATM\b/) || text.contains(/^(?:CASH-IN|PST)\s+\d/) { return true }
         let lowered = text.lowercased()
-        return ["выдача наличных", "снятие наличных", "получение наличных", "получение денег в банкомате", "взнос наличных", "внесение наличных"]
-            .contains { lowered.contains($0) }
+        return [
+            "выдача наличных", "снятие наличных", "получение наличных", "получение денег в банкомате",
+            "взнос наличных", "взнос наличными", "внесение наличных",
+        ].contains { lowered.contains($0) }
     }
 
     /// Кошелёк для наличных в валюте: свой счёт «Наличные» пользователя, если он уже есть,
