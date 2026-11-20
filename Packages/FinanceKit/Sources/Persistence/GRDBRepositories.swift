@@ -146,6 +146,7 @@ public struct GRDBTransactionRepository: TransactionRepository {
             && Column("categoryLocked") == false
             && Column("kind") != FinanceTransaction.Kind.transfer.rawValue
             && Column("transferPairID") == nil
+            && Column("transferDeclined") == false
             && deletedAt == nil
         return try await database.writer.write { db in
             try TransactionRecord

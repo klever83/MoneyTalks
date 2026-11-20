@@ -12,8 +12,9 @@ public enum OwnTransfers {
     static let phrases = [
         // Приорбанк, выписка по счёту: «Перевод с продажей валюты по списку ПДПП между счетами клиента».
         "между счетами клиента",
-        // Приорбанк, выписка по контракту: «Payment From Client Contract», «Payment To Client Contract».
-        "client contract",
+        // Приорбанк, выписка по контракту: «Payment From Client Contract» (покупка валюты со своего контракта).
+        // «Payment To Client Contract» может быть и контрактом другого клиента банка, поэтому не входит.
+        "from client contract",
         // Альфа-Банк: «Перевод через АК в рамках одного ФЛ», «Перевод на копилку».
         "в рамках одного фл",
         "на копилку",
@@ -40,11 +41,12 @@ public enum OwnTransfers {
     }
 
     /// Операция, которую стоит отметить переводом без пары: не связана, не перевод, категорию
-    /// пользователь не выбирал и не убирал, не удалена и не холд.
+    /// пользователь не выбирал и не убирал, «Это не перевод» не нажимал, не удалена и не холд.
     public static func shouldMark(_ transaction: FinanceTransaction) -> Bool {
         transaction.deletedAt == nil
             && !transaction.isPending
             && transaction.transferPairID == nil
+            && !transaction.transferDeclined
             && transaction.kind != .transfer
             && transaction.categoryID == nil
             && !transaction.categoryLocked

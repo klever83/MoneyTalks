@@ -115,6 +115,7 @@ struct TransactionRecord: Codable, FetchableRecord, PersistableRecord, Sendable 
     var categoryLocked: Bool
     var kind: String
     var transferPairID: UUID?
+    var transferDeclined: Bool
     var note: String
     var source: String
     var importBatchID: UUID?
@@ -141,6 +142,7 @@ struct TransactionRecord: Codable, FetchableRecord, PersistableRecord, Sendable 
         categoryLocked = transaction.categoryLocked
         kind = transaction.kind.rawValue
         transferPairID = transaction.transferPairID
+        transferDeclined = transaction.transferDeclined
         note = transaction.note
         source = transaction.source.rawValue
         importBatchID = transaction.importBatchID
@@ -173,6 +175,7 @@ struct TransactionRecord: Codable, FetchableRecord, PersistableRecord, Sendable 
             categoryLocked: categoryLocked,
             kind: FinanceTransaction.Kind(rawValue: kind),
             transferPairID: transferPairID,
+            transferDeclined: transferDeclined,
             note: note,
             source: FinanceTransaction.Source(rawValue: source) ?? .manual,
             importBatchID: importBatchID,

@@ -30,6 +30,9 @@ public struct FinanceTransaction: Identifiable, Hashable, Codable, Sendable {
     public var kind: Kind
     /// Общий идентификатор двух сторон перевода между своими счетами.
     public var transferPairID: UUID?
+    /// Пользователь отменил отметку перевода («Это не перевод»): автоматические правила
+    /// (`OwnTransfers`, `TransferMatcher`) больше не делают операцию переводом.
+    public var transferDeclined: Bool
     public var note: String
     public var source: Source
     public var importBatchID: UUID?
@@ -54,6 +57,7 @@ public struct FinanceTransaction: Identifiable, Hashable, Codable, Sendable {
         categoryLocked: Bool = false,
         kind: Kind? = nil,
         transferPairID: UUID? = nil,
+        transferDeclined: Bool = false,
         note: String = "",
         source: Source,
         importBatchID: UUID? = nil,
@@ -75,6 +79,7 @@ public struct FinanceTransaction: Identifiable, Hashable, Codable, Sendable {
         self.categoryLocked = categoryLocked
         self.kind = kind ?? (amount.isNegative ? .expense : .income)
         self.transferPairID = transferPairID
+        self.transferDeclined = transferDeclined
         self.note = note
         self.source = source
         self.importBatchID = importBatchID

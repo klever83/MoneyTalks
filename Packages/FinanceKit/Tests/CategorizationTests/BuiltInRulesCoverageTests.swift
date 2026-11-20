@@ -110,7 +110,8 @@ struct CategoryBackfillTests {
             var count = 0
             for id in ids {
                 guard let index = stored.firstIndex(where: { $0.id == id }),
-                      UncategorizedReview.isPending(stored[index]), stored[index].transferPairID == nil else { continue }
+                      UncategorizedReview.isPending(stored[index]), stored[index].transferPairID == nil,
+                      !stored[index].transferDeclined else { continue }
                 stored[index].kind = .transfer
                 count += 1
             }
@@ -179,5 +180,25 @@ struct CategoryBackfillTests {
         #expect(byID[p2p.id]?.kind == .expense)
         #expect(byID[p2p.id]?.categoryID == FinanceCategory.systemID(for: "transfers_people"))
         #expect(byID[lockedOwn.id]?.kind == .expense)
+    }
+
+    @Test("«Это не перевод» переживает следующую раскладку: операция остаётся расходом")
+    func declinedTransferStaysExpense() async throws {
+        let own = transaction("Перевод через АК в рамках одного ФЛ")
+        let store = Store([own])
+        let categorizer = RuleBasedTransactionCategorizer(repository: NoRules())
+
+        #expect(try await CategoryBackfill.run(transactions: store, categorizer: categorizer) == 1)
+        let marked = try #require(store.stored.first)
+        #expect(marked.kind == .transfer)
+
+        let restored = try #require(QuickReview.undoTransfer(marked))
+        try await store.save([restored])
+        // Новая версия правил или восстановление копии запускают раскладку снова.
+        #expect(try await CategoryBackfill.run(transactions: store, categorizer: categorizer) == 0)
+        let after = try #require(store.stored.first)
+        #expect(after.kind == .expense)
+        #expect(after.transferDeclined)
+        #expect(UncategorizedReview.isPending(after))
     }
 }

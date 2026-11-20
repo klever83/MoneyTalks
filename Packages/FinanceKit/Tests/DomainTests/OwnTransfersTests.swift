@@ -36,7 +36,7 @@ struct OwnTransfersTests {
         #expect(!OwnTransfers.matches(transaction(text)))
     }
 
-    @Test("MCC покупки важнее текста, связанный, закреплённый и с категорией не отмечаются")
+    @Test("MCC покупки важнее текста, связанный, закреплённый, с категорией и «Это не перевод» не отмечаются")
     func guards() {
         let text = "Перевод между своими счетами"
         #expect(!OwnTransfers.matches(transaction(text, mcc: 5411)))
@@ -49,7 +49,9 @@ struct OwnTransfersTests {
         categorized.categoryID = FinanceCategory.systemID(for: "other")
         var hold = transaction(text)
         hold.isPending = true
-        for item in [paired, locked, categorized, hold] {
+        var declined = transaction(text)
+        declined.transferDeclined = true
+        for item in [paired, locked, categorized, hold, declined] {
             #expect(OwnTransfers.marked(item) == item)
         }
         // Поступление со своего счёта тоже не доход.

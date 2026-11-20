@@ -80,6 +80,10 @@ struct QuickReviewTests {
         #expect(restored.kind == .expense)
         #expect(restored.categoryID == nil && !restored.categoryLocked)
         #expect(UncategorizedReview.isPending(restored))
+        #expect(restored.transferDeclined)
+        // Ответ «Да, это переводы» после отказа снова делает её переводом: решение тоже пользователя.
+        let again = try #require(QuickReview.channelGroups([restored]).first)
+        #expect(QuickReview.markAsTransfers(again).first?.transferDeclined == false)
 
         let incoming = transaction("ПОПОЛНЕНИЕ", minor: 5000) { $0.kind = .transfer; $0.categoryLocked = true }
         #expect(QuickReview.undoTransfer(incoming)?.kind == .income)

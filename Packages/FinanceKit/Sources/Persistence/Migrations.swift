@@ -170,6 +170,14 @@ extension AppDatabase {
             try insertSystemCategories(SystemCategories.addedV10, into: db)
         }
 
+        migrator.registerMigration("v11-transfer-declined") { db in
+            // «Это не перевод»: отказ пользователя хранится в операции, чтобы раскладка при новой
+            // версии правил или после восстановления копии не отмечала её переводом снова.
+            try db.alter(table: "transactions") { t in
+                t.add(column: "transferDeclined", .boolean).notNull().defaults(to: false)
+            }
+        }
+
         return migrator
     }
 

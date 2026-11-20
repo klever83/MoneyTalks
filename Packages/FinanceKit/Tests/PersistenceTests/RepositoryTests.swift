@@ -309,7 +309,8 @@ struct RepositoryTests {
         let pending = transaction()
         let chosen = transaction { $0.categoryID = FinanceCategory.systemID(for: "other") }
         let locked = transaction { $0.categoryLocked = true }
-        let all = [pending, chosen, locked]
+        let declined = transaction { $0.transferDeclined = true }
+        let all = [pending, chosen, locked, declined]
         try await transactions.save(all)
 
         #expect(try await transactions.markTransfers(all.map(\.id)) == 1)
@@ -317,5 +318,7 @@ struct RepositoryTests {
         #expect(byID[pending.id]?.kind == .transfer)
         #expect(byID[chosen.id]?.kind == .expense)
         #expect(byID[locked.id]?.kind == .expense)
+        #expect(byID[declined.id]?.kind == .expense)
+        #expect(byID[declined.id]?.transferDeclined == true)
     }
 }
