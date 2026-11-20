@@ -1,0 +1,42 @@
+import Domain
+import Foundation
+import GRDB
+@testable import Persistence
+import Testing
+
+@Suite("Миграция новых системных категорий")
+struct SystemCategoriesMigrationTests {
+    @Test("Установленное приложение получает новые категории в конце списка, повтор ничего не дублирует")
+    func addsCategoriesToExistingDatabase() throws {
+        let queue = try DatabaseQueue()
+        let migrator = AppDatabase.migrator
+        try migrator.migrate(queue, upTo: "v8-transactions-date-index")
+        let before = try queue.read { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM categories") ?? 0 }
+        let lastSort = try queue.read { db in try Int.fetchOne(db, sql: "SELECT MAX(sortOrder) FROM categories") ?? 0 }
+        // Старые установки: категории первой версии, без добавленных.
+        #expect(before == SystemCategories.all.count)
+
+        // Имитация старой базы: убираем то, что `v1` уже вставила из обновлённого списка.
+        try queue.write { db in
+            for category in SystemCategories.added {
+                try db.execute(sql: "DELETE FROM categories WHERE id = ?", arguments: [category.id.rawValue])
+            }
+        }
+        try migrator.migrate(queue)
+
+        let keys = try queue.read { db in
+            try String.fetchAll(db, sql: "SELECT systemKey FROM categories WHERE systemKey IS NOT NULL")
+        }
+        #expect(Set(keys) == Set(SystemCategories.all.compactMap(\.systemKey)))
+        #expect(keys.count == SystemCategories.all.count)
+        let addedSorts = try queue.read { db in
+            try Int.fetchAll(
+                db,
+                sql: "SELECT sortOrder FROM categories WHERE systemKey IN (\(SystemCategories.added.map { _ in "?" }.joined(separator: ",")))",
+                arguments: StatementArguments(SystemCategories.added.compactMap(\.systemKey))
+            )
+        }
+        #expect(addedSorts.allSatisfy { $0 > lastSort - SystemCategories.added.count })
+        #expect(Set(addedSorts).count == SystemCategories.added.count)
+    }
+}

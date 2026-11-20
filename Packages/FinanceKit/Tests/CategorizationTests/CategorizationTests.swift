@@ -90,7 +90,7 @@ struct BuiltInRulesTests {
 
     @Test("Короткие названия совпадают только отдельным словом")
     func wordsNeedBoundaries() {
-        #expect(key("МТСБАНК КОМИССИЯ") == nil)
+        #expect(key("МТСБАНК ОПЛАТА") == nil)
         #expect(key("SA1NT SHOP") == nil)
         #expect(key("A1") == FinanceCategory.systemID(for: "telecom"))
         #expect(key("KFC Galleria") == FinanceCategory.systemID(for: "cafes"))

@@ -30,4 +30,6 @@ public enum SettingsKey {
     public static let convertToBaseCurrency = "convertToBaseCurrency"
     /// Блокировка приложения по Face ID (#19).
     public static let appLockEnabled = "appLockEnabled"
+    /// Версия встроенных правил категорий, по которой уже разложены сохранённые операции.
+    public static let categorizedWithRulesVersion = "categorizedWithRulesVersion"
 }
