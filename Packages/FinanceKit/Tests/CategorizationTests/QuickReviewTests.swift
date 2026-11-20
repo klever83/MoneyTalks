@@ -72,6 +72,24 @@ struct QuickReviewTests {
         #expect(assigned.allSatisfy { $0.categoryID == cafes && $0.categoryLocked })
     }
 
+    @Test("«Это не перевод»: непарный перевод возвращается в расходы без категории, парный не трогается")
+    func undoTransfer() throws {
+        let marked = try #require(QuickReview.markAsTransfers(
+            try #require(QuickReview.channelGroups([transaction("MOBILE BANK BLR, MINSK", minor: -2000)]).first)
+        ).first)
+        let restored = try #require(QuickReview.undoTransfer(marked))
+        #expect(restored.kind == .expense)
+        #expect(restored.categoryID == nil && !restored.categoryLocked)
+        #expect(UncategorizedReview.isPending(restored))
+
+        let incoming = transaction("ПОПОЛНЕНИЕ", minor: 5000) { $0.kind = .transfer; $0.categoryLocked = true }
+        #expect(QuickReview.undoTransfer(incoming)?.kind == .income)
+
+        let paired = transaction("ПЕРЕВОД") { $0.kind = .transfer; $0.transferPairID = UUID() }
+        #expect(QuickReview.undoTransfer(paired) == nil)
+        #expect(QuickReview.undoTransfer(transaction("EVROOPT")) == nil)
+    }
+
     @Test("Подсказки: тот же мерчант в другом банке, MCC, потом частые категории пользователя")
     func suggestions() throws {
         let pending = transaction("KOFEMANIYA 12 BLR, MINSK")
@@ -90,6 +108,8 @@ struct QuickReviewTests {
 
         #expect(ids == [taxi, cafes, groceries])
         #expect(QuickReview.suggestions(for: group, transactions: items, categories: categories, limit: 1) == [taxi])
+        let index = QuickReview.SuggestionIndex(items)
+        #expect(QuickReview.suggestions(for: group, index: index, categories: categories) == ids)
     }
 
     @Test("Прогресс: доля расходов с категорией в основной валюте, без переводов и поступлений")

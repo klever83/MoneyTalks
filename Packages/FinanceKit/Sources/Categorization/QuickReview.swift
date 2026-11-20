@@ -63,6 +63,20 @@ public enum QuickReview {
         }
     }
 
+    /// «Это не перевод»: отменяет отметку перевода у операции без пары, например после ответа
+    /// «Переводы на свои карты» в анкете. Тип снова по знаку суммы, категория снимается вместе
+    /// с закреплением, чтобы операция вернулась в «Без категории» и её снова разложили правила.
+    /// `nil`, если это не перевод или у перевода есть вторая сторона на другом своём счёте:
+    /// такую пару отменяют вместе, а не по одной операции.
+    public static func undoTransfer(_ transaction: FinanceTransaction) -> FinanceTransaction? {
+        guard transaction.kind == .transfer, transaction.transferPairID == nil else { return nil }
+        var transaction = transaction
+        transaction.kind = transaction.amount.isNegative ? .expense : .income
+        transaction.categoryID = nil
+        transaction.categoryLocked = false
+        return transaction
+    }
+
     /// «Это переводы другим людям» и т. п.: категория закрепляется за всеми операциями канала.
     /// Правила нет: следующие платежи через приложение могут быть за что угодно.
     public static func assign(_ group: ChannelGroup, to categoryID: FinanceCategory.ID) -> [FinanceTransaction] {
@@ -76,6 +90,31 @@ public enum QuickReview {
 
     // MARK: - Подсказки
 
+    /// Всё, что нужно подсказкам, собранное за один проход по операциям: на каждой карточке анкеты
+    /// пересчитывать ключи мерчантов десятков тысяч операций слишком дорого.
+    public struct SuggestionIndex: Sendable {
+        /// Операции по ключу мерчанта, без удалённых и переводов.
+        let byMerchant: [String: [FinanceTransaction]]
+        /// Категории расходов по числу операций, самые частые первыми.
+        let frequentExpense: [FinanceCategory.ID]
+        /// Категории поступлений по числу операций, самые частые первыми.
+        let frequentIncome: [FinanceCategory.ID]
+
+        public init(_ transactions: [FinanceTransaction]) {
+            let live = transactions.filter { $0.deletedAt == nil && $0.kind != .transfer }
+            byMerchant = Dictionary(grouping: live) { MerchantNormalizer.key($0.merchantRaw) }
+            frequentExpense = Self.frequent(live.filter(\.amount.isNegative))
+            frequentIncome = Self.frequent(live.filter { !$0.amount.isNegative })
+        }
+
+        /// Категории по числу операций, самые частые первыми.
+        private static func frequent(_ transactions: [FinanceTransaction]) -> [FinanceCategory.ID] {
+            Dictionary(grouping: transactions.compactMap(\.categoryID)) { $0 }
+                .sorted { $0.value.count > $1.value.count }
+                .map(\.key)
+        }
+    }
+
     /// Варианты ответа для мерчанта, лучшие первыми, не больше `limit`:
     /// 1. категория, которую тот же мерчант уже получил в другой операции (например, по MCC в выписке
     ///    другого банка, где код есть);
@@ -84,7 +123,7 @@ public enum QuickReview {
     /// - Parameter categories: категории, которые можно предлагать (видимые, нужного типа).
     public static func suggestions(
         for group: UncategorizedReview.Group,
-        transactions: [FinanceTransaction],
+        index: SuggestionIndex,
         categories: [FinanceCategory],
         limit: Int = 5
     ) -> [FinanceCategory.ID] {
@@ -95,13 +134,12 @@ public enum QuickReview {
             result.append(id)
         }
 
+        let frequent = group.isExpense ? index.frequentExpense : index.frequentIncome
         guard case .merchant(let key) = group.id else {
-            frequent(transactions, isExpense: group.isExpense).forEach(add)
+            frequent.forEach(add)
             return result
         }
-        let sameMerchant = transactions.filter {
-            $0.deletedAt == nil && $0.kind != .transfer && MerchantNormalizer.key($0.merchantRaw) == key
-        }
+        let sameMerchant = index.byMerchant[key] ?? []
         // 1. Тот же мерчант уже разложен в другой операции.
         let known = Dictionary(grouping: sameMerchant.compactMap(\.categoryID)) { $0 }
         known.sorted { $0.value.count > $1.value.count }.forEach { add($0.key) }
@@ -111,18 +149,18 @@ public enum QuickReview {
             add(byMCC.suggest(for: transaction)?.categoryID)
         }
         // 3. Частые категории пользователя.
-        frequent(transactions, isExpense: group.isExpense).forEach(add)
+        frequent.forEach(add)
         return result
     }
 
-    /// Категории по числу операций того же типа, самые частые первыми.
-    private static func frequent(_ transactions: [FinanceTransaction], isExpense: Bool) -> [FinanceCategory.ID] {
-        let ids = transactions.compactMap { transaction -> FinanceCategory.ID? in
-            guard transaction.deletedAt == nil, transaction.kind != .transfer,
-                  transaction.amount.isNegative == isExpense else { return nil }
-            return transaction.categoryID
-        }
-        return Dictionary(grouping: ids) { $0 }.sorted { $0.value.count > $1.value.count }.map(\.key)
+    /// То же, что `suggestions(for:index:categories:limit:)`, с индексом по `transactions`.
+    public static func suggestions(
+        for group: UncategorizedReview.Group,
+        transactions: [FinanceTransaction],
+        categories: [FinanceCategory],
+        limit: Int = 5
+    ) -> [FinanceCategory.ID] {
+        suggestions(for: group, index: SuggestionIndex(transactions), categories: categories, limit: limit)
     }
 
     // MARK: - Прогресс

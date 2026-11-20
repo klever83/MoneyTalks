@@ -168,6 +168,17 @@ final class TransactionsViewModel {
         }
     }
 
+    /// «Это не перевод» для перевода без пары: операция возвращается в доходы и расходы,
+    /// правила раскладывают её заново, а без подходящего правила она попадает в «Без категории».
+    func undoTransfer(_ transaction: FinanceTransaction) async {
+        guard let restored = QuickReview.undoTransfer(transaction) else { return }
+        do {
+            try await transactionRepository.save(try await categorizer.categorize([restored]))
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func delete(_ transaction: FinanceTransaction) async {
         do {
             try await transactionRepository.delete(transaction.id)

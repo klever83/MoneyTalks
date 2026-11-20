@@ -17,6 +17,8 @@ struct QuickReviewView: View {
     @State private var startShare: Double?
     @State private var chips: [FinanceCategory] = []
     @State private var pickingCategoryFor: Step?
+    /// Канал, для которого ждём подтверждения «Переводы на свои карты».
+    @State private var confirmingTransfers: QuickReview.ChannelGroup?
 
     private var review: UncategorizedViewModel { model.review }
 
@@ -74,6 +76,20 @@ struct QuickReviewView: View {
             CategoryListSheet(categories: model.pickerCategories(isExpense: true)) { categoryID in
                 answer(step, with: categoryID)
             }
+        }
+        .confirmationDialog(
+            "Это переводы на свои карты?",
+            isPresented: Binding(get: { confirmingTransfers != nil }, set: { if !$0 { confirmingTransfers = nil } }),
+            titleVisibility: .visible,
+            presenting: confirmingTransfers
+        ) { channel in
+            Button("Да, это переводы") {
+                Task { await review.markAsTransfers(channel) }
+                next()
+            }
+            Button("Отмена", role: .cancel) {}
+        } message: { channel in
+            Text(review.transfersSummary(channel))
         }
         .errorAlert(Binding(get: { review.errorMessage }, set: { review.errorMessage = $0 }))
     }
@@ -144,10 +160,9 @@ struct QuickReviewView: View {
         case .channel(let channel):
             VStack(alignment: .leading, spacing: 16) {
                 header(title: channel.title, count: channel.transactions.count, totals: channel.totals)
-                Text("Это платежи из приложения банка: по выписке не видно, за что они. Что это чаще всего?")
+                Text("Это платежи из приложения банка: по выписке не видно, за что они. Ответ применится ко всем сразу, поэтому если среди них есть ЕРИП или оплата, выбери «Разные».")
                 Button {
-                    Task { await review.markAsTransfers(channel) }
-                    next()
+                    confirmingTransfers = channel
                 } label: {
                     VStack(alignment: .leading) {
                         Text("Переводы на свои карты")

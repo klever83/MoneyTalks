@@ -226,4 +226,23 @@ struct TransactionsViewModelTests {
         let saved = try await transactions.transactions(TransactionQuery())
         #expect(saved.first { $0.id == payment.id }?.kind == .transfer)
     }
+
+    @Test("«Это не перевод» в карточке: операция снова расход и возвращается в «Без категории»")
+    func undoTransfer() async throws {
+        let observing = Task { await model.observe() }
+        defer { observing.cancel() }
+        let account = try await cardAccount()
+        let payment = imported("MOBILE BANK MINSK", account: account, minor: -2000)
+        try await transactions.save([payment])
+        try await waitUntil { model.review.channels.count == 1 }
+
+        await model.review.markAsTransfers(try #require(model.review.channels.first))
+        try await waitUntil { model.transaction(id: payment.id)?.kind == .transfer }
+        #expect(model.review.count == 0)
+
+        await model.undoTransfer(try #require(model.transaction(id: payment.id)))
+        try await waitUntil { model.transaction(id: payment.id)?.kind == .expense }
+        try await waitUntil { model.review.count == 1 }
+        #expect(model.transaction(id: payment.id)?.categoryID == nil)
+    }
 }

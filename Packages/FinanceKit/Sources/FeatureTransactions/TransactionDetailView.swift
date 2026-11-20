@@ -129,6 +129,17 @@ struct TransactionDetailView: View {
                 TextField("Заметка", text: binding.note, axis: .vertical)
             }
 
+            if isTransfer, transaction.transferPairID == nil {
+                Section {
+                    Button("Это не перевод") {
+                        draft = nil
+                        Task { await model.undoTransfer(transaction) }
+                    }
+                } footer: {
+                    Text("Операция вернётся в доходы и расходы, и для неё можно будет выбрать категорию.")
+                }
+            }
+
             Section {
                 if let account = model.account(for: transaction) {
                     LabeledContent("Счёт", value: account.name)

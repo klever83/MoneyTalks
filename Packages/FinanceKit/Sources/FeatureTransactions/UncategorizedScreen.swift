@@ -15,8 +15,9 @@ final class UncategorizedViewModel {
     private(set) var progress: QuickReview.Progress?
     /// Операции уже прочитаны из базы: до этого очередь анкеты пустая не потому, что всё разложено.
     private(set) var isLoaded = false
-    /// Все операции: для подсказок по тому же мерчанту из других банков.
-    private(set) var all: [FinanceTransaction] = []
+    /// Подсказки по тому же мерчанту из других банков: собираются один раз на изменение операций,
+    /// а не на каждой карточке анкеты.
+    @ObservationIgnored private var suggestionIndex = QuickReview.SuggestionIndex([])
     var errorMessage: String?
 
     private let transactionRepository: any TransactionRepository
@@ -42,7 +43,7 @@ final class UncategorizedViewModel {
     }
 
     func suggestions(for group: UncategorizedReview.Group, categories: [FinanceCategory]) -> [FinanceCategory.ID] {
-        QuickReview.suggestions(for: group, transactions: all, categories: categories)
+        QuickReview.suggestions(for: group, index: suggestionIndex, categories: categories)
     }
 
     /// «Не знаю»: мерчант не попадёт в анкету 30 дней. Просроченные отметки заодно чистятся.
@@ -56,6 +57,12 @@ final class UncategorizedViewModel {
 
     func markAsTransfers(_ channel: QuickReview.ChannelGroup) async {
         await save(QuickReview.markAsTransfers(channel))
+    }
+
+    /// Сколько и на какую сумму уйдёт из расходов, если ответить «Переводы на свои карты».
+    func transfersSummary(_ channel: QuickReview.ChannelGroup) -> String {
+        let sum = channel.totals.map { $0.negated.formatted() }.joined(separator: " + ")
+        return String(localized: "Операций: \(channel.transactions.count), на сумму \(sum). Они не попадут в расходы. Отметку можно снять в карточке операции: «Это не перевод».")
     }
 
     func assign(_ channel: QuickReview.ChannelGroup, to categoryID: FinanceCategory.ID) async {
@@ -78,7 +85,7 @@ final class UncategorizedViewModel {
         do {
             // Все операции, а не только без категории: по ним видно, есть ли у мерчанта покупки.
             for try await items in transactionRepository.observeTransactions(TransactionQuery()) {
-                all = items
+                suggestionIndex = QuickReview.SuggestionIndex(items)
                 groups = UncategorizedReview.groups(items)
                 channels = QuickReview.channelGroups(items)
                 progress = QuickReview.progress(items)

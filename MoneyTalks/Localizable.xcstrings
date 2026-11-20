@@ -1565,16 +1565,6 @@
         }
       }
     },
-    "Это платежи из приложения банка: по выписке не видно, за что они. Что это чаще всего?": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "These are payments from your banking app: the statement doesn't say what they were for. What are they usually?"
-          }
-        }
-      }
-    },
     "Переводы на свои карты": {
       "localizations": {
         "en": {
@@ -1631,6 +1621,66 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sort into categories"
+          }
+        }
+      }
+    },
+    "Это платежи из приложения банка: по выписке не видно, за что они. Ответ применится ко всем сразу, поэтому если среди них есть ЕРИП или оплата, выбери «Разные».": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "These are payments from your banking app: the statement doesn't say what they were for. Your answer applies to all of them, so if some are bill payments or purchases, choose “A mix”."
+          }
+        }
+      }
+    },
+    "Это переводы на свои карты?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Are these transfers to your own cards?"
+          }
+        }
+      }
+    },
+    "Да, это переводы": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yes, these are transfers"
+          }
+        }
+      }
+    },
+    "Операций: %lld, на сумму %@. Они не попадут в расходы. Отметку можно снять в карточке операции: «Это не перевод».": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transactions: %lld, total %@. They won't count as expenses. You can undo this on the transaction screen: “Not a transfer”."
+          }
+        }
+      }
+    },
+    "Это не перевод": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not a transfer"
+          }
+        }
+      }
+    },
+    "Операция вернётся в доходы и расходы, и для неё можно будет выбрать категорию.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The transaction returns to income and expenses, and you can choose a category for it."
           }
         }
       }
