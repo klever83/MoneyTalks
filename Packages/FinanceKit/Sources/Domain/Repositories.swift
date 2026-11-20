@@ -36,6 +36,11 @@ public protocol TransactionRepository: Sendable {
     func fingerprints(accountID: Account.ID) async throws -> Set<String>
     /// Дата самой ранней неудалённой операции счёта, `nil`, если операций нет.
     func earliestBookedAt(accountID: Account.ID) async throws -> Date?
+    /// Ставит категории только тем операциям, которые всё ещё её ждут: без категории, не закреплённым,
+    /// не переводам и не удалённым. Меняется одна категория, а не вся запись, поэтому правка
+    /// пользователя, сделанная после чтения операций, не перезаписывается.
+    /// - Returns: сколько операций получили категорию.
+    func fillCategories(_ categories: [FinanceTransaction.ID: FinanceCategory.ID]) async throws -> Int
 }
 
 public protocol CategoryRepository: Sendable {

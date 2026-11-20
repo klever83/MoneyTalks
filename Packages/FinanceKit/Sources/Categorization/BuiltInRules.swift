@@ -17,7 +17,7 @@ public enum BuiltInRules {
 
     /// Версия набора правил. Увеличивается при каждом изменении: после обновления приложения
     /// уже загруженные операции без категории раскладываются заново (`CategoryBackfill`).
-    public static let version = 2
+    public static let version = 3
 
     public static let all: [CategoryRule] = merchantRules + mccRules + keywordRules
 
@@ -48,7 +48,7 @@ public enum BuiltInRules {
         ("taxi", [
             "YANDEX GO", "YANDEX*GO", "YANDEX.GO", "YANDEX.TAXI", "ЯНДЕКС GO", "ЯНДЕКС ТАКСИ",
             "TAXI", "ТАКСИ",
-        ], ["UBER", "BOLT"]),
+        ], ["UBER", "BOLT", "FASTEN", "ФАСТЕН"]),
         ("transport", [
             "BELARUSNEFT", "БЕЛОРУСНЕФТЬ", "LUKOIL", "ЛУКОЙЛ", "GAZPROMNEFT", "ГАЗПРОМНЕФТЬ",
             "METROPOLITEN", "МЕТРОПОЛИТЕН", "BELZHD", "BELARUSKAYA ZHELEZNAYA", "БЕЛОРУССКАЯ ЖЕЛЕЗНАЯ",

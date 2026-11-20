@@ -255,4 +255,42 @@ struct RepositoryTests {
         try await transactions.delete(first.id)
         #expect(try await transactions.earliestBookedAt(accountID: card.id) == Date(timeIntervalSince1970: 3_000))
     }
+
+    @Test("Категория ставится только операциям, которые её ждут: правка пользователя не перезаписывается")
+    func fillCategories() async throws {
+        let card = Account(name: "Карта", kind: .card, currency: .byn)
+        try await accounts.save(card)
+        let cafes = FinanceCategory.systemID(for: "cafes")
+        let groceries = FinanceCategory.systemID(for: "groceries")
+        func transaction(_ change: (inout FinanceTransaction) -> Void = { _ in }) -> FinanceTransaction {
+            var transaction = FinanceTransaction(
+                accountID: card.id, bookedAt: .now,
+                amount: Money(minorUnits: -100, currency: .byn), merchantRaw: "A", note: "", source: .imported
+            )
+            change(&transaction)
+            return transaction
+        }
+        let pending = transaction()
+        let edited = transaction { $0.note = "до правки" }
+        let chosen = transaction { $0.categoryID = groceries }
+        let locked = transaction { $0.categoryLocked = true }
+        let transfer = transaction { $0.kind = .transfer }
+        try await transactions.save([pending, edited, chosen, locked, transfer])
+        // Пока шла раскладка, пользователь поправил заметку: она должна остаться.
+        var noted = edited
+        noted.note = "после правки"
+        try await transactions.save([noted])
+
+        let all = [pending, edited, chosen, locked, transfer]
+        let count = try await transactions.fillCategories(Dictionary(uniqueKeysWithValues: all.map { ($0.id, cafes) }))
+
+        #expect(count == 2)
+        let byID = Dictionary(uniqueKeysWithValues: try await transactions.transactions(TransactionQuery()).map { ($0.id, $0) })
+        #expect(byID[pending.id]?.categoryID == cafes)
+        #expect(byID[edited.id]?.categoryID == cafes)
+        #expect(byID[edited.id]?.note == "после правки")
+        #expect(byID[chosen.id]?.categoryID == groceries)
+        #expect(byID[locked.id]?.categoryID == nil)
+        #expect(byID[transfer.id]?.categoryID == nil)
+    }
 }

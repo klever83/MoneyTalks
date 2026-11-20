@@ -24,6 +24,10 @@ enum SystemCategories {
 
     /// Категории, добавленные после первой версии: у установленных приложений их создаёт
     /// миграция `v9-more-system-categories`, у новых — та же `v1-system-categories`.
+    ///
+    /// Сюда больше ничего не дописывать: кто уже прошёл v9, новую категорию не получит,
+    /// а правило с ней молча не сработает. Следующие системные категории — отдельным списком
+    /// со своей миграцией (`v10-…`) и с тестом в `SystemCategoriesMigrationTests`.
     static let added: [FinanceCategory] = [
         expense("marketplaces", "Маркетплейсы", "shippingbox", "#FF9F0A"),
         expense("beauty", "Красота и уход", "sparkles", "#BF5AF2"),
