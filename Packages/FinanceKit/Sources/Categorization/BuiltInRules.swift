@@ -20,7 +20,8 @@ public enum BuiltInRules {
     /// 5: ключ мерчанта без места (`v12-merchant-key-place`), «всегда так» накрывает больше операций.
     /// 6: ключ по последнему коду страны (`v13-merchant-key-last-country`).
     /// 7: комиссии Альфы и БСБ, связь через ЕРИП БНБ, отмена P2P БСБ.
-    public static let version = 7
+    /// 8: «Плата за …» только отдельным словом.
+    public static let version = 8
 
     public static let all: [CategoryRule] = merchantRules + mccRules + keywordRules
 
@@ -136,11 +137,12 @@ public enum BuiltInRules {
         // Комиссии банка: только списания («Комиссионное вознаграждение» в плюс — это кэшбэк).
         // Альфа: «Оплата комиссии за изменение НП/ПР/РПР», «Оплата единого вознаграждения (ежемесячно)».
         // БСБ: «Плата за Р2Р перевод в устройствах банка» (Р2Р кириллицей).
-        for text in [
-            "УСЛУГ БАНКА", "КОМИССИЯ", "ОПЛАТА КОМИССИИ", "ЕДИНОГО ВОЗНАГРАЖДЕНИЯ",
-            "ПЛАТА ЗА Р2Р", "ПЛАТА ЗА P2P", "ПЛАТА ЗА ПЕРЕВОД",
-        ] {
+        for text in ["УСЛУГ БАНКА", "КОМИССИЯ", "ОПЛАТА КОМИССИИ", "ЕДИНОГО ВОЗНАГРАЖДЕНИЯ"] {
             rules.append(rule("fees", [.merchantContains(text), .amountSign(.negative)], priority: merchantPriority, name: "fees:\(text)"))
+        }
+        // «Плата за …» отдельным словом: «Оплата за перевод документов» (бюро переводов) — не комиссия.
+        for text in ["ПЛАТА ЗА Р2Р", "ПЛАТА ЗА P2P", "ПЛАТА ЗА ПЕРЕВОД"] {
+            rules.append(rule("fees", [.merchantWord(text), .amountSign(.negative)], priority: merchantPriority, name: "fees-word:\(text)"))
         }
         // Переводы другим людям: только списания. Перевод между своими счетами склеивается парой
         // (`TransferMatcher`) или отмечается `OwnTransfers` раньше категорий, сюда он не доходит.
