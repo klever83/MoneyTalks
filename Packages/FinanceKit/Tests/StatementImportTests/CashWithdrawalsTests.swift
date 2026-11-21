@@ -27,6 +27,9 @@ struct CashWithdrawalsTests {
         #expect(CashWithdrawals.isCashOperation(transaction(-10_000, "Выдача наличных ATM TEST", mcc: 6011)))
         #expect(CashWithdrawals.isCashOperation(transaction(-4_500, "ATM BLR GOMEL ATM 181")))
         #expect(CashWithdrawals.isCashOperation(transaction(-382_000, "Cash BLR Minsk Dop.ofis 115")))
+        // Касса допофиса в выписке Приорбанка по счёту.
+        #expect(CashWithdrawals.isCashOperation(transaction(-285_000, "Dop fis 101-19 PRK 2 BLR, Minsk")))
+        #expect(!CashWithdrawals.isCashOperation(transaction(-500, "DOPFISH SHOP BLR, MINSK")))
         #expect(CashWithdrawals.isCashOperation(transaction(-100_000, "MINSK Получение денег в банкомате RECATMALF")))
         #expect(!CashWithdrawals.isCashOperation(transaction(-1_145, "Безналичная оплата SHOP GREEN", mcc: 5411)))
         #expect(!CashWithdrawals.isCashOperation(transaction(-500, "Cashback партнёра")))
