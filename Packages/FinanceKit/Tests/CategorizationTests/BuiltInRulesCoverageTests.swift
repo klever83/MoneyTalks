@@ -86,6 +86,9 @@ struct BuiltInRulesCoverageTests {
         #expect(key("Оплата комиссии за изменение НП/ПР/ РПР", minor: -690) == fees)
         #expect(key("Оплата единого вознаграждения (ежемесячно) в рамках НП/ПР/РПР ЗА ОКТЯБРЬ 2026", minor: -690) == fees)
         #expect(key("Плата за Р2Р перевод в устройствах банка PEREVOD BSB", minor: -400) == fees)
+        #expect(key("Плата за перевод", minor: -100) == fees)
+        // Бюро переводов: «оплата за перевод» — не комиссия банка.
+        #expect(key("Оплата за перевод документов", minor: -5000) != fees)
         // Кэшбэк — не комиссия.
         #expect(key("Комиссионное вознаграждение (money-back)", minor: 1047) != fees)
         #expect(key("Списание со счета BNB-BANK ERIP (MOBIL'NAYA SVYAZ')", minor: -2900)
