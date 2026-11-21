@@ -57,10 +57,31 @@ struct TransferMatcherTests {
 
     @Test("В одном счёте пара с общим номером документа — перевод (контракт и карта)")
     func sameAccountWithReference() {
-        let into = transaction(card, 250_000, "Поступление на контракт клиента 000000-00000-000001")
-        let out = transaction(card, -250_000, "Payment From Client Contract 000000-00000-000001")
-        let other = transaction(card, -250_000, "Payment From Client Contract 000000-00000-000002")
+        let into = transaction(card, 250_000, "Пополнение контракта 000000-00000-000001")
+        let out = transaction(card, -250_000, "Перевод с карты 000000-00000-000001")
+        let other = transaction(card, -250_000, "Перевод с карты 000000-00000-000002")
         #expect(TransferMatcher.pairs(in: [into, other, out]) == [TransferMatcher.Pair(outgoing: out.id, incoming: into.id)])
+    }
+
+    @Test("Покупка валюты Приорбанка: пара с долларовым контрактом, а не с зарплатой того же дня")
+    func currencyPurchaseWithoutRate() {
+        // Зарплата пришла на рублёвый контракт и в тот же день целиком ушла на покупку долларов.
+        let salary = transaction(card, 302_000, "Поступление на контракт клиента 000000-00000-000001")
+        let purchase = transaction(card, -302_000, "Payment From Client Contract 000000-00000-000001", hours: 1)
+        let dollars = transaction(usd, 100_000, "Поступление на контракт клиента 000000-00000-000009", currency: .usd, hours: 1)
+        #expect(TransferMatcher.pairs(in: [salary, purchase, dollars]) == [
+            TransferMatcher.Pair(outgoing: purchase.id, incoming: dollars.id),
+        ])
+        // Та же операция в выписке по счёту.
+        let fromAccount = transaction(deposit, -302_000, "Перевод с продажей валюты по списку ПДПП между счетами клиента")
+        #expect(TransferMatcher.pairs(in: [fromAccount, dollars]) == [
+            TransferMatcher.Pair(outgoing: fromAccount.id, incoming: dollars.id),
+        ])
+        // Через два дня это уже не та покупка.
+        let later = transaction(usd, 100_000, "Поступление на контракт клиента 000000-00000-000009", currency: .usd, hours: 49)
+        #expect(TransferMatcher.pairs(in: [purchase, later]).isEmpty)
+        // Без покупки валюты разные валюты по-прежнему не сравниваются.
+        #expect(TransferMatcher.pairs(in: [transaction(card, -302_000, "Перевод"), dollars]).isEmpty)
     }
 
     @Test("Обмен валют: сумма в валюте операции совпадает со второй стороной")

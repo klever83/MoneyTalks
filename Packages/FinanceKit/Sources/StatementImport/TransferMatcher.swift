@@ -126,7 +126,11 @@ public enum TransferMatcher {
         window: TimeInterval
     ) -> Bool {
         if out.accountID == into.accountID {
+            // Покупка валюты уходит на другой контракт: в том же счёте её сумма совпадает
+            // с зарплатой того же дня, и это не пара (у Приорбанка «Поступление на контракт
+            // клиента» с тем же номером договора — зарплата или проценты).
             return distance <= sameAccountWindow
+                && !isCurrencyPurchase(out)
                 && into.amount == out.amount.absolute
                 && !references(out.merchantRaw).isDisjoint(with: references(into.merchantRaw))
         }
@@ -135,7 +139,27 @@ public enum TransferMatcher {
         // Обмен валют: одна из сторон знает сумму в валюте другой.
         if let original = out.originalAmount, original.absolute == into.amount { return true }
         if let original = into.originalAmount, original.absolute == out.amount.absolute { return true }
-        return false
+        // Покупка валюты у Приорбанка: рубли уходят со счёта или контракта, доллары приходят
+        // на валютный контракт, а курса и суммы в другой валюте в выписке нет. Узнаём по
+        // формулировкам обеих сторон в один день.
+        return out.amount.currency != into.amount.currency
+            && distance <= sameAccountWindow
+            && isCurrencyPurchase(out)
+            && isCurrencyPurchaseIncoming(into)
+    }
+
+    /// Списание на покупку валюты: «Payment From Client Contract» (контракт) и «Перевод с продажей
+    /// валюты по списку ПДПП между счетами клиента» (выписка по счёту) — одна и та же операция.
+    static func isCurrencyPurchase(_ transaction: FinanceTransaction) -> Bool {
+        let text = transaction.merchantRaw.lowercased()
+        return transaction.amount.isNegative
+            && (text.contains("payment from client contract") || text.contains("между счетами клиента"))
+    }
+
+    /// Зачисление на контракт: у валютного контракта это вторая сторона покупки валюты.
+    static func isCurrencyPurchaseIncoming(_ transaction: FinanceTransaction) -> Bool {
+        !transaction.amount.isNegative
+            && transaction.merchantRaw.lowercased().contains("поступление на контракт клиента")
     }
 
     /// MCC, с которыми операция может быть переводом: денежные переводы, финансовые учреждения,
