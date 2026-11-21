@@ -79,6 +79,21 @@ struct BuiltInRulesCoverageTests {
         #expect(key("Оплата услуг банка", minor: -500) == FinanceCategory.systemID(for: "fees"))
         #expect(key("Уплата процентов", minor: -350) == nil)
     }
+
+    @Test("Комиссии, связь через ЕРИП и отмена P2P у Альфы, БСБ и БНБ")
+    func smallBankOperations() {
+        let fees = FinanceCategory.systemID(for: "fees")
+        #expect(key("Оплата комиссии за изменение НП/ПР/ РПР", minor: -690) == fees)
+        #expect(key("Оплата единого вознаграждения (ежемесячно) в рамках НП/ПР/РПР ЗА ОКТЯБРЬ 2026", minor: -690) == fees)
+        #expect(key("Плата за Р2Р перевод в устройствах банка PEREVOD BSB", minor: -400) == fees)
+        // Кэшбэк — не комиссия.
+        #expect(key("Комиссионное вознаграждение (money-back)", minor: 1047) != fees)
+        #expect(key("Списание со счета BNB-BANK ERIP (MOBIL'NAYA SVYAZ')", minor: -2900)
+            == FinanceCategory.systemID(for: "telecom"))
+        let people = FinanceCategory.systemID(for: "transfers_people")
+        #expect(key("Отмена списания P2P PEREVOD BSB", minor: 9000) == people)
+        #expect(key("Списание P2P в устройствах Банка PEREVOD BSB", minor: -9000) == people)
+    }
 }
 
 @Suite("Раскладка сохранённых операций")

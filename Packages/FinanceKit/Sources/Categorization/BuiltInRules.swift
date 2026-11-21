@@ -19,7 +19,8 @@ public enum BuiltInRules {
     /// уже загруженные операции без категории раскладываются заново (`CategoryBackfill`).
     /// 5: ключ мерчанта без места (`v12-merchant-key-place`), «всегда так» накрывает больше операций.
     /// 6: ключ по последнему коду страны (`v13-merchant-key-last-country`).
-    public static let version = 6
+    /// 7: комиссии Альфы и БСБ, связь через ЕРИП БНБ, отмена P2P БСБ.
+    public static let version = 7
 
     public static let all: [CategoryRule] = merchantRules + mccRules + keywordRules
 
@@ -62,6 +63,8 @@ public enum BuiltInRules {
         ], []),
         ("telecom", [
             "BELTELECOM", "БЕЛТЕЛЕКОМ", "BYFLY", "LIFE:)",
+            // БНБ, ЕРИП: «Списание со счета BNB-BANK ERIP (MOBIL'NAYA SVYAZ')».
+            "MOBIL'NAYA SVYAZ", "MOBILNAYA SVYAZ", "МОБИЛЬНАЯ СВЯЗЬ",
         ], ["MTS", "МТС", "A1", "ZALA"]),
         ("health", [
             "APTEKA", "АПТЕКА", "PHARMACY", "БЕЛФАРМАЦИЯ", "BELFARMACIYA",
@@ -131,7 +134,12 @@ public enum BuiltInRules {
             rules.append(rule("interest", [.merchantContains(text), .amountSign(.positive)], priority: merchantPriority, name: "interest:\(text)"))
         }
         // Комиссии банка: только списания («Комиссионное вознаграждение» в плюс — это кэшбэк).
-        for text in ["УСЛУГ БАНКА", "КОМИССИЯ"] {
+        // Альфа: «Оплата комиссии за изменение НП/ПР/РПР», «Оплата единого вознаграждения (ежемесячно)».
+        // БСБ: «Плата за Р2Р перевод в устройствах банка» (Р2Р кириллицей).
+        for text in [
+            "УСЛУГ БАНКА", "КОМИССИЯ", "ОПЛАТА КОМИССИИ", "ЕДИНОГО ВОЗНАГРАЖДЕНИЯ",
+            "ПЛАТА ЗА Р2Р", "ПЛАТА ЗА P2P", "ПЛАТА ЗА ПЕРЕВОД",
+        ] {
             rules.append(rule("fees", [.merchantContains(text), .amountSign(.negative)], priority: merchantPriority, name: "fees:\(text)"))
         }
         // Переводы другим людям: только списания. Перевод между своими счетами склеивается парой
@@ -139,6 +147,11 @@ public enum BuiltInRules {
         for text in ["P2P", "PERSON TO PERSON", "МЕЖДУ СЧЕТАМИ ФИЗИЧЕСКИХ ЛИЦ"] {
             rules.append(rule("transfers_people", [.merchantContains(text), .amountSign(.negative)], priority: merchantPriority, name: "people:\(text)"))
         }
+        // БСБ: «Отмена списания P2P PEREVOD BSB» — возврат перевода, уменьшает «Переводы людям».
+        rules.append(rule(
+            "transfers_people", [.merchantContains("ОТМЕНА СПИСАНИЯ P2P"), .amountSign(.positive)],
+            priority: merchantPriority, name: "people-refund:ОТМЕНА СПИСАНИЯ P2P"
+        ))
         return rules
     }()
 

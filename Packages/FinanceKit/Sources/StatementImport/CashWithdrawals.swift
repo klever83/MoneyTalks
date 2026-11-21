@@ -27,6 +27,9 @@ public enum CashWithdrawals {
         // Приорбанк, выписка по контракту: тип операции в начале описания, `ATM BLR GOMEL …`, `Cash BLR Minsk Dop.ofis …`.
         // Банкоматы других банков с кодом банка: `ATMTBK GM11 GOMEL …`, `ATMALF GM08 ALMI`.
         if text.contains(/^(?:ATM(?:[A-Z]{3})?|Cash)\s/) { return true }
+        // Приорбанк, выписка по счёту: касса допофиса, `Dop fis 101-19 PRK 2 BLR, Minsk`
+        // (суммы вроде 2 850 = 1 000 USD × 2,85: покупка наличной валюты или снятие).
+        if text.contains(/^(?i:dop\.?\s?fis)\s/) { return true }
         // Приорбанк, выписка по счёту: банкомат словом в названии (`CBU-301/14 BAPB ATM BLR, GOMEL`),
         // взнос через терминал (`CASH-IN 123`, `PST 123`). Взнос бывает только поступлением на карту.
         if text.contains(/\bATM\b/) { return true }
